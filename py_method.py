@@ -1,3 +1,5 @@
+#Copyright Asitha Senanayake 2016
+
 from pylab import *
 
 ###################################
