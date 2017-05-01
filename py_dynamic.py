@@ -67,8 +67,10 @@ def dyn_lat_tower_1(L=10., D=1., A=1., I=1., t=0.1, E=200e9, rho=7850., n=20, mo
         for j in range(0,len(vr[:,-i])/2):
             u[j] = vr[2*j,-i]
 
-        plot(u/u[0],node_loc), xlabel('Relative Displacement'), ylabel('Height (m)')
+        plot(u/u[-1],node_loc), xlabel('Relative Displacement'), ylabel('Depth below tower top (m)')
         grid(True)
+        ax = gca()
+        ax.invert_yaxis(), ax.xaxis.tick_top(), ax.xaxis.set_label_position('top')
         
     return w**0.5, vr
 
@@ -114,23 +116,25 @@ def dyn_lat_tower_2(L=10., D_b=6.0, D_t= 3.0, t_b=0.025, t_t=0.020, E=200e9, rho
     
     u = zeros(n_elem + 1)
 
-    figure()
-    rcParams['figure.figsize'] = 3,5
+    figure(figsize=(6,4))
     for i in modes:
         omega = w[-i]**0.5
         
         print 'Mode %2d:  Frequency = %8.3f rad/sec = %6.3f Hz, Period = %8.4f s' %(i, omega, omega/(2*pi), 2*pi/omega)
         for j in range(0,len(vr[:,-i])/2):
             u[j] = vr[2*j,-i]
-        plot(u/u[0],node_loc), xlabel('Relative Displacement'), ylabel('Height (m)')
+        
+        plot(u/u[-1],node_loc), xlabel('Relative Displacement'), ylabel('Depth below tower top (m)')
         grid(True)
+        ax = gca()
+        ax.invert_yaxis(), ax.xaxis.tick_top(), ax.xaxis.set_label_position('top')
         
     return w**0.5, vr
 
 
 def dyn_lat_tower_3(D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower_top=0.027, L_tower=90., n_tower=50, 
                         D_pile=6.0, t_pile=0.050, L_pile=60., n_pile=50, rho=7850., E=200.e9, modes=[1,2], k_secant=array([]),
-                        lumped_mass=1.0, lumped_mass_loc=-1):
+                        lumped_mass=1.0, lumped_mass_loc=-1, pile_base_fixity='Free'):
     '''Analyze the free vibration of a circular tower with a tapering cross-section and attached to a pile foundation supported by p-y springs.
     The output consists of specified modes and natural frequencies. 
     
@@ -168,9 +172,9 @@ def dyn_lat_tower_3(D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower
     
     n_elem, l, A, I, E, rho,node_loc = tower_pile_geom(D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, t_tower_top=t_tower_top, 
                                                        L_tower=L_tower, n_tower=n_tower, D_pile=D_pile, t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, 
-                                                       rho=rho, E=E, lumped_mass=lumped_mass, lumped_mass_loc=-1)
+                                                       rho=rho, E=E, lumped_mass=lumped_mass, lumped_mass_loc=lumped_mass_loc)
 
-    w,vr = fe_solver_dyn_2(n_elem,l,E,I,A,rho,k_secant,base_fixity='Free')
+    w,vr = fe_solver_dyn_2(n_elem,l,E,I,A,rho,k_secant,base_fixity=pile_base_fixity)
     #print 'f_0 = %.2f' %((min(w))**0.5)
 
     u = zeros(n_elem + 1)
@@ -183,8 +187,11 @@ def dyn_lat_tower_3(D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower
         print 'Mode %2d:  Frequency = %8.3f rad/sec = %6.3f Hz, Period = %8.4f s' %(i, omega, omega/(2*pi), 2*pi/omega)
         for j in range(0,len(vr[:,-i])/2):
             u[j] = vr[2*j,-i]
-        plot(u/u[0],node_loc), xlabel('Relative Displacement'), ylabel('Height (m)')
-        grid(True)
+        plot(u/u[-1],node_loc), xlabel('Relative Displacement'), ylabel('Depth below tower top (m)')
+    
+    grid(True)
+    ax = gca()
+    ax.invert_yaxis(), ax.xaxis.tick_top(), ax.xaxis.set_label_position('top')
         
     return w**0.5, vr
 
@@ -285,6 +292,338 @@ def dyn_lat_tower_4(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=
         
     return w**0.5, vr
 
+def dyn_lat_tower_4_SI(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower_top=0.027, 
+                    L_tower=90., n_tower=50, D_pile=6.0, t_pile=0.050, L_pile=60., n_pile=50, rho=7850., E=200.e9, modes=[1,2],
+                    Y_secant=0.01, py_model='Matlock', plot_profile='Yes', print_output='Yes',lumped_mass=1.0, lumped_mass_loc=0,
+                    water_depth=0.0, **kwargs):
+    '''Analyze the free vibration of a circular tower with a tapering cross-section and attached to a pile foundation supported by p-y springs.
+    The output consists of specified modes and natural frequencies. This accepts the specified Su vs depth soil profile and p-y model and 
+    calculates the Winkler spring stiffnesses internally as unlike 'dyn_lat_tower_3()' for which the Winkler spring stiffness array should be
+    provided as an input.
+    
+    The addition of a single lumped mass anywhere along the length of the tower is allowed.
+
+    Input:
+    -----
+    soil_profile - A 2D tuple in the following format: ([Depth (m), Su (kPa), gamma_sub (kN/m^3), py-model, model parameter])
+                   The soil profile should be defined relative to the pile head (i.e. point of lateral load application) so
+                   that any load eccentricities can be taken into account. An example soil profile is shown below.
+                   Eg: array([[z0,Su0,gamma_sub0,  'Matlock', 0.02],
+                              [z1,Su1,gamma_sub1,  'Matlock', 0.01],
+                              [z2,Su2,gamma_sub2, 'Jeanjean',  550]])
+                              py_model      - p-y model to be used. Options: 'Matlock', 'Jeanjean', 'Modified Matlock'
+    D_tower_bot - Diameter at base of tower (m)
+    D_tower_top - Diameter at top of tower  (m)
+    t_tower_bot - Wall thickness at base of tower (m)
+    t_tower_top - Wall thickness at top of tower  (m)
+    L_tower     - Height of tower (m)
+    n_tower     - Number elements in to which the tower should be divided. 
+    D_pile      - Diameter of the pile foundation (m)
+    t_pile      - Wall thickness of the pile foundation (m)
+    L_pile      - Length of the pile foundation (m)
+    n_pile      - Number of element in to which the pile should be divided
+    E           - Elastic modulus of material (N/m2)
+    rho         - Material mass density (kg/m3) 
+    modes       - List of the modes whose results that should be printed
+    py_model    - Select which p-y model to use, 'Matlock', 'Jeanjean', 'Modified Matlock', or 'Kodikara'.
+    print_output - Print and plot results from dynamic analysis. 'Yes' or 'No'
+    plot_profile  - Plot Su vs depth profile and the location of the structure relative to that soil profile.
+                              ...]). 'Yes' or 'No'
+    Y_secant      - The lateral displacement at which to calculate the secant stiffness of the p-y curve.
+    water_depth   - Depth of water (m) [0.0m by default]
+    
+    Optional:
+    lumped_mass     - Assign a lumped mass to any element (kg)
+    lumped_mass_loc - Number of element to which lumped masss is assigned (0 to n-1)
+
+    Optional keywords: **kwargs
+    epsilon_50  - Define 'epsilon_50' if 'Matlock' p-y model is selected. (epsilon_50=0.02 by default)
+    Gmax_Su_ratio - Define G_mas/Su if Jeanjean or Kodikara p-y models are chosen. (G_max_Su_ratio = 550 by default)
+
+    Output:
+    ------
+    omega - Fundamental natural frequency (Hz)
+    u     - Displacement vector representing the mode shape (m)
+    '''
+
+    #Extract optional keyword arguments
+    epsilon_50, Gmax_Su_ratio = 0.02, 550 #Default parameters if no **kwargs are defined
+    for arg in kwargs:
+        if arg=='epsilon_50':
+            epsilon_50 = kwargs[arg]        
+        if arg=='Gmax_Su_ratio':
+             Gmax_Su_ratio= kwargs[arg]
+    
+    n_elem, l, A, I, E, rho,node_loc = tower_pile_geom(D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, t_tower_top=t_tower_top, 
+                                                       L_tower=L_tower, n_tower=n_tower, D_pile=D_pile, t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, 
+                                                       rho=rho, E=E, lumped_mass=lumped_mass, lumped_mass_loc=lumped_mass_loc, print_output=print_output)
+    
+    z_0, f_Su, f_sigma_v_eff = design_soil_profile_SI(soil_profile, plot_profile='No')
+    #Plot structure
+    if plot_profile=='Yes':
+        Su_max = f_Su(1.2*(L_tower+L_pile))/1000 #kPa
+        #print 'Su_max = %.f' %Su_max
+        plot([-0.2*Su_max,-0.2*Su_max], [0,L_tower], 'g-', lw=2)
+        plot([-0.2*Su_max,-0.2*Su_max], [L_tower,(L_tower+L_pile)], 'g-', lw=5)
+
+        if water_depth > 0.0:
+            plot([-0.5*Su_max, Su_max], [L_tower,L_tower], 'b--')
+            text(0.5*Su_max, 0.95*L_tower, 'Sea Level', color='b')
+            #xlim([-0.6*Su_max,1.1*Su_max])
+        
+    k_secant = calc_k_secant_SI(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pile, L_tower, py_model=py_model,
+                             Y_secant=Y_secant, plot_profile=plot_profile, epsilon_50=epsilon_50, Gmax_Su_ratio=Gmax_Su_ratio,
+                             water_depth=water_depth)
+    
+    #figure()
+    #plot(k_secant), grid(True)
+    
+    #print 'z(m)    k_secant (N/m^2)'
+    #print '------------------------'
+    
+    #for i in range(n_elem-5,n_elem):
+    #    print '%5.1f %6.3e' %((node_loc[i]+node_loc[i+1])/2., k_secant[i])
+
+    w,vr = fe_solver_dyn_2(n_elem,l,E,I,A,rho,k_secant,base_fixity='Free')
+
+    u = zeros(n_elem + 1)
+    
+
+    if print_output=='Yes':
+        print 'Fundamental natural frequency, f_0 = %6.3f-Hz\n' %((min(w))**0.5/2/pi)
+        
+        figure()
+        rcParams['figure.figsize'] = 6,4
+        for i in modes:
+            omega = w[-i]**0.5
+
+            print 'Mode %2d:  Frequency = %8.3f rad/sec = %6.3f Hz, Period = %8.4f s' %(i, omega, omega/(2*pi), 2*pi/omega)
+            for j in range(0,len(vr[:,-i])/2):
+                u[j] = vr[2*j,-i]
+            plot(u/u[-1] - 1,node_loc)
+
+        xlabel('Relative Displacement'), ylabel('Depth below top of turbine tower (m)'), grid(True)
+        ylim(ymin=0)
+        ax = gca()
+        ax.invert_yaxis()
+        
+    return w**0.5, vr
+
+
+def dyn_lat_tower_41_SI(soil_profile, Y_secant, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower_top=0.027, 
+                    L_tower=90., n_tower=50, D_pile=6.0, t_pile=0.050, L_pile=60., n_pile=50, rho=7850., E=200.e9, modes=[1,2],
+                    py_model='Matlock', plot_profile='Yes', print_output='Yes',lumped_mass=1.0, lumped_mass_loc=0,
+                    water_depth=0.0, **kwargs):
+    '''Analyze the free vibration of a circular tower with a tapering cross-section and attached to a pile foundation supported by p-y springs.
+    The output consists of specified modes and natural frequencies. This accepts the specified Su vs depth soil profile and p-y model and 
+    calculates the Winkler spring stiffnesses internally as unlike 'dyn_lat_tower_3()' for which the Winkler spring stiffness array should be
+    provided as an input.
+    
+    The addition of a single lumped mass anywhere along the length of the tower is allowed.
+
+    Input:
+    -----
+    soil_profile - A 2D tuple in the following format: ([Depth (m), Su (kPa), gamma_sub (kN/m^3), py-model, model parameter])
+                   The soil profile should be defined relative to the pile head (i.e. point of lateral load application) so
+                   that any load eccentricities can be taken into account. An example soil profile is shown below.
+                   Eg: array([[z0,Su0,gamma_sub0,  'Matlock', 0.02],
+                              [z1,Su1,gamma_sub1,  'Matlock', 0.01],
+                              [z2,Su2,gamma_sub2, 'Jeanjean',  550]])
+                              py_model      - p-y model to be used. Options: 'Matlock', 'Jeanjean', 'Modified Matlock'
+    Y_secant      - An array with the normalized displacement (y/D) at the mid-point of each element. It is used to calculate 
+                    the secant stiffness of the corresponding p-y curve.
+    D_tower_bot - Diameter at base of tower (m)
+    D_tower_top - Diameter at top of tower  (m)
+    t_tower_bot - Wall thickness at base of tower (m)
+    t_tower_top - Wall thickness at top of tower  (m)
+    L_tower     - Height of tower (m)
+    n_tower     - Number elements in to which the tower should be divided. 
+    D_pile      - Diameter of the pile foundation (m)
+    t_pile      - Wall thickness of the pile foundation (m)
+    L_pile      - Length of the pile foundation (m)
+    n_pile      - Number of element in to which the pile should be divided
+    E           - Elastic modulus of material (N/m2)
+    rho         - Material mass density (kg/m3) 
+    modes       - List of the modes whose results that should be printed
+    py_model    - Select which p-y model to use, 'Matlock', 'Jeanjean', 'Modified Matlock', or 'Kodikara'.
+    print_output - Print and plot results from dynamic analysis. 'Yes' or 'No'
+    plot_profile  - Plot Su vs depth profile and the location of the structure relative to that soil profile.
+                              ...]). 'Yes' or 'No'
+    water_depth   - Depth of water (m) [0.0m by default]
+    
+    Optional:
+    lumped_mass     - Assign a lumped mass to any element (kg)
+    lumped_mass_loc - Number of element to which lumped masss is assigned (0 to n-1)
+
+    Optional keywords: **kwargs
+    epsilon_50  - Define 'epsilon_50' if 'Matlock' p-y model is selected. (epsilon_50=0.02 by default)
+    Gmax_Su_ratio - Define G_mas/Su if Jeanjean or Kodikara p-y models are chosen. (G_max_Su_ratio = 550 by default)
+
+    Output:
+    ------
+    omega - Fundamental natural frequency (Hz)
+    u     - Displacement vector representing the mode shape (m)
+    '''
+
+    #Extract optional keyword arguments
+    epsilon_50, Gmax_Su_ratio = 0.02, 550 #Default parameters if no **kwargs are defined
+    for arg in kwargs:
+        if arg=='epsilon_50':
+            epsilon_50 = kwargs[arg]        
+        if arg=='Gmax_Su_ratio':
+             Gmax_Su_ratio= kwargs[arg]
+    
+    n_elem, l, A, I, E, rho,node_loc = tower_pile_geom(D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, t_tower_top=t_tower_top, 
+                                                       L_tower=L_tower, n_tower=n_tower, D_pile=D_pile, t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, 
+                                                       rho=rho, E=E, lumped_mass=lumped_mass, lumped_mass_loc=lumped_mass_loc, print_output=print_output)
+    
+    z_0, f_Su, f_sigma_v_eff = design_soil_profile_SI(soil_profile, plot_profile='No')
+    #Plot structure
+    if plot_profile=='Yes':
+        Su_max = f_Su(1.01*(L_tower+L_pile))/1000 #kPa
+        #print 'Su_max = %.f' %Su_max
+        plot(-0.2*Su_max, 0, 'go')
+        plot([-0.2*Su_max,-0.2*Su_max], [0,L_tower], 'g-', lw=2)
+        plot([-0.2*Su_max,-0.2*Su_max], [L_tower,(L_tower+L_pile)], 'g-', lw=5)
+
+        if water_depth > 0.0:
+            plot([-0.5*Su_max, Su_max], [L_tower,L_tower], 'b--')
+            text(0.5*Su_max, 0.95*L_tower, 'Sea Level', color='b')
+            #xlim([-0.6*Su_max,1.1*Su_max])
+        
+    k_secant = calc_k_secant_2_SI(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pile, L_tower, py_model=py_model,
+                             Y_secant=Y_secant, plot_profile=plot_profile, epsilon_50=epsilon_50, Gmax_Su_ratio=Gmax_Su_ratio,
+                             water_depth=water_depth)
+    
+    #figure()
+    #plot(k_secant), grid(True)
+    
+    #print 'z(m)    k_secant (N/m^2)'
+    #print '------------------------'
+    
+    #for i in range(n_elem-5,n_elem):
+    #    print '%5.1f %6.3e' %((node_loc[i]+node_loc[i+1])/2., k_secant[i])
+
+    w,vr = fe_solver_dyn_2(n_elem,l,E,I,A,rho,k_secant,base_fixity='Free')
+
+    u = zeros(n_elem + 1)
+    
+
+    if print_output=='Yes':
+        print 'Fundamental natural frequency, f_0 = %6.3f-Hz\n' %((min(w))**0.5/2/pi)
+        
+        figure()
+        rcParams['figure.figsize'] = 6,4
+        for i in modes:
+            omega = w[-i]**0.5
+
+            print 'Mode %2d:  Frequency = %8.3f rad/sec = %6.3f Hz, Period = %8.4f s' %(i, omega, omega/(2*pi), 2*pi/omega)
+            for j in range(0,len(vr[:,-i])/2):
+                u[j] = vr[2*j,-i]
+            plot(u/u[-1] - 1,-node_loc+L_tower+water_depth)
+
+        xlabel('Relative displacement'), ylabel('Height/Depth relative to mudline (m)'), grid(True)
+        #ylim(ymin=0)
+        #ax = gca()
+        #ax.invert_yaxis()
+        
+    return w**0.5, vr
+
+
+def dyn_lat_tower_5_SI(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t_tower_top=0.027, 
+                    L_tower=90., n_tower=50, D_pile=6.0, t_pile=0.050, L_pile=60., n_pile=50, water_depth=0.0,
+                    rho=7850., E=200.e9, modes=[1,2], V_0=0.0, V_n=0.0, M_0=0.0, M_n=0.0,
+                    py_model='Matlock', plot_profile='Yes', print_output='Yes',lumped_mass=1.0, lumped_mass_loc=0,
+                    **kwargs):
+    '''Anlyzed the natural frequencies of a wind turbine structure under a specified quasi-static wind and wave load. 
+    A static analysis using 'py_fe_3' is done first and the resulting deflection profile is used to calculate the soil
+    spring stiffnesses to calculate the natural frequencies.
+    
+    Input:
+    -----
+    soil_profile - A 2D tuple in the following format: ([Depth (m), Su (kPa), gamma_sub (kN/m^3), py-model, model parameter])
+                   The soil profile should be defined relative to the pile head (i.e. point of lateral load application) so
+                   that any load eccentricities can be taken into account. An example soil profile is shown below.
+                   Eg: array([[z0,Su0,gamma_sub0,  'Matlock', 0.02],
+                              [z1,Su1,gamma_sub1,  'Matlock', 0.01],
+                              [z2,Su2,gamma_sub2, 'Jeanjean',  550]])
+                              py_model      - p-y model to be used. Options: 'Matlock', 'Jeanjean', 'Modified Matlock'
+    Y_secant      - An array with the normalized displacement (y/D) at the mid-point of each element. It is used to calculate 
+                    the secant stiffness of the corresponding p-y curve.
+    D_tower_bot - Diameter at base of tower (m)
+    D_tower_top - Diameter at top of tower  (m)
+    t_tower_bot - Wall thickness at base of tower (m)
+    t_tower_top - Wall thickness at top of tower  (m)
+    L_tower     - Height of tower (m)
+    n_tower     - Number elements in to which the tower should be divided. 
+    D_pile      - Diameter of the pile foundation (m)
+    t_pile      - Wall thickness of the pile foundation (m)
+    L_pile      - Length of the pile foundation (m)
+    n_pile      - Number of element in to which the pile should be divided
+    E           - Elastic modulus of material (N/m2)
+    rho         - Material mass density (kg/m3) 
+    modes       - List of the modes whose results that should be printed
+    py_model    - Select which p-y model to use, 'Matlock', 'Jeanjean', 'Modified Matlock', or 'Kodikara'.
+    print_output - Print and plot results from dynamic analysis. 'Yes' or 'No'
+    plot_profile  - Plot Su vs depth profile and the location of the structure relative to that soil profile.
+                              ...]). 'Yes' or 'No'
+    water_depth   - Depth of water (m) [0.0m by default]
+    
+    Optional:
+    lumped_mass     - Assign a lumped mass to any element (kg)
+    lumped_mass_loc - Number of element to which lumped masss is assigned (0 to n-1)
+
+    Optional keywords: **kwargs
+    epsilon_50  - Define 'epsilon_50' if 'Matlock' p-y model is selected. (epsilon_50=0.02 by default)
+    Gmax_Su_ratio - Define G_mas/Su if Jeanjean or Kodikara p-y models are chosen. (G_max_Su_ratio = 550 by default)
+
+    Output:
+    ------
+    omega - Fundamental natural frequency (Hz)
+    u     - Displacement vector representing the mode shape (m)
+    '''
+    
+    #Extract optional keyword arguments
+    epsilon_50, Gmax_Su_ratio = 0.02, 550 #Default parameters if no **kwargs are defined
+    for arg in kwargs:
+        if arg=='epsilon_50':
+            epsilon_50 = kwargs[arg]        
+        if arg=='Gmax_Su_ratio':
+             Gmax_Su_ratio= kwargs[arg]
+
+    #Static analysis
+    y,rot,node_loc = py_fe_3(soil_profile, D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, t_tower_top=t_tower_top, 
+                                        L_tower=L_tower, n_tower=n_tower, D_pile=D_pile, t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, water_depth=water_depth, 
+                                        E=E, V_0=V_0, V_n=0.0, M_0=M_0, M_n=M_n, iterations=10, py_model=py_model, plot_profile='No', 
+                                        convergence_tracker='No', epsilon_50=epsilon_50, Gmax_Su_ratio=Gmax_Su_ratio)
+
+    if print_output=='Yes':
+        figure()
+        plot(y,node_loc)
+        xlabel(r'Lateral Displacement (m)'), ylabel('Depth below top of turbine tower (m)'), grid(True)
+        ax = gca()
+        ax.invert_yaxis()
+
+    #Dynamic analysis 
+    Y_secant = zeros(len(y))
+    for i in range(len(y)):
+        if y[i] != 0:
+            Y_secant[i] = y[i]/D_pile
+        else:
+            Y_secant[i] = 1e-4 #To avoid numerical error if k_secant = inf or nan
+
+    #print Y_secant
+
+    if print_output=='Yes':
+        figure()
+        
+    w,vr = dyn_lat_tower_41_SI(soil_profile, Y_secant, D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, t_tower_top=t_tower_top, 
+                                          L_tower=L_tower, n_tower=n_tower,D_pile=D_pile, t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, water_depth=water_depth,
+                                          rho=rho, E=E, modes=modes, lumped_mass=lumped_mass, lumped_mass_loc=lumped_mass_loc, 
+                                          py_model=py_model, plot_profile=plot_profile, print_output=print_output, epsilon_50=epsilon_50, Gmax_Su_ratio=Gmax_Su_ratio)
+    
+    return w,vr
+
 
 #######################
 ### Static Analysis ###
@@ -375,7 +714,7 @@ def py_fe_3(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t
     n, l, A, I, E, rho,node_loc = tower_pile_geom(D_tower_bot=D_tower_bot, D_tower_top=D_tower_top, t_tower_bot=t_tower_bot, 
                                                   t_tower_top=t_tower_top, L_tower=L_tower, n_tower=n_tower, D_pile=D_pile, 
                                                   t_pile=t_pile, L_pile=L_pile, n_pile=n_pile, rho=0.0, E=E, lumped_mass=0.0, 
-                                                  lumped_mass_loc=-1, print_output='No')
+                                                  lumped_mass_loc=0, print_output='No')
     
     #Number of nodes
     N = n+1
@@ -390,10 +729,16 @@ def py_fe_3(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t
     
     #Plot structure
     if plot_profile=='Yes':
-        plot([-1,-1], [0,L_tower], 'g-', lw=2)
-        plot([-1,-1], [L_tower,L_tower+L_pile], 'g-', lw=5)
+        Su_max = f_Su(1.2*(L_tower+L_pile))/1000 #kPa
         
-    
+        plot([-0.2*Su_max,-0.2*Su_max], [0,L_tower], 'g-', lw=2)
+        plot([-0.2*Su_max,-0.2*Su_max], [L_tower,L_tower+L_pile], 'g-', lw=5)
+
+        if water_depth > 0.0:
+            plot([-0.5*Su_max, Su_max], [L_tower,L_tower], 'b--')
+            text(0.5*Su_max, 0.95*L_tower, 'Sea Level', color='b')
+            #xlim([-0.6*Su_max,1.1*Su_max])
+        
     #Array for displacement
     y = ones(N)*(0.01*D_pile)   #An initial value of 0.01D was arbitrarily chosen
     
@@ -406,12 +751,14 @@ def py_fe_3(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t
     
         if py_model=='Matlock':
             py_funs.append(matlock_py_curves_SI(z[i], D_pile, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
+        elif py_model=='API':
+            py_funs.append(API_RP_2GEO_2011_py_curves_SI(z[i], D_pile, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
         elif py_model=='Jeanjean':
-            py_funs.append(jeanjean_py_curves(z[i], D,Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=Gmax_Su_ratio))
+            py_funs.append(jeanjean_py_curves_SI(z[i], D_pile,Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=Gmax_Su_ratio))
         elif py_model=='Modified Matlock':
-            py_funs.append(modified_matlock_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
+            py_funs.append(modified_matlock_py_curves_SI(z[i], D_pile, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
         elif py_model=='Kodikara':
-            py_funs.append(kodikara_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, R1=0.5, A=Gmax_Su_ratio, print_curves='No'))
+            py_funs.append(kodikara_py_curves_SI(z[i], D_pile, Su, sigma_v_eff, z_0=z_0, R1=0.5, A=Gmax_Su_ratio, print_curves='No'))
         else:
             print "P-y model not properly defined. Please select one of the following:"
             print "'Matlock', 'Jeanjean', 'Modified Matlock', 'Kodikara'"
@@ -421,7 +768,7 @@ def py_fe_3(soil_profile, D_tower_bot=4.5, D_tower_top=4.5, t_tower_bot=0.027, t
     
     #Track k_secant and current displacements
     if convergence_tracker=='Yes':
-        y1 = linspace(-2.*D,2.*D,500)
+        y1 = linspace(-2.*D_pile,2.*D_pile,500)
         figure()
         plot(y1, py_funs[loc](y1))
         xlabel('y (m)'), ylabel('p (N/m)'), grid(True)
@@ -494,7 +841,7 @@ def tower_pile_geom(D_tower_bot=6.0, D_tower_top=3.87, t_tower_bot=0.027, t_towe
     M_nacelle   = M_nacelle*2.2/386.4    #lb-m
     """
     
-    n_elem = n_pile + n_tower #Number of elements
+    n_elem = n_tower + n_pile #Number of elements
     
     #Initialize arrays for L, A, I, and rho
     l   = zeros(n_elem)
@@ -511,7 +858,7 @@ def tower_pile_geom(D_tower_bot=6.0, D_tower_top=3.87, t_tower_bot=0.027, t_towe
     #Add pile only if it is defined (i.e. n_pile > 0)
     if n_pile>0: 
         l_e_pile = L_pile/n_pile*ones(n_pile)
-        l = concatenate([l_e_pile, l_e_tower])
+        l = concatenate([l_e_tower, l_e_pile])
     else:
         l = l_e_tower
     
@@ -530,7 +877,22 @@ def tower_pile_geom(D_tower_bot=6.0, D_tower_top=3.87, t_tower_bot=0.027, t_towe
     pile_mass = 0.0
     
     #Populate arrays
-    for i in range(0,n_pile):
+    for i in range(0,n_tower):
+        cumulative_length += l[i]
+        node_loc[i+1] = cumulative_length #Assign location of each node
+        
+        D = D_tower_top + D_gradient*(cumulative_length - l[i]/2.)
+        t = t_tower_top + t_gradient*(cumulative_length - l[i]/2.)
+        
+        #print '%6.2f  %6.2f  %6.3f  %6.4f  %6.3f' %(l[i], node_loc[i], D, t, D_gradient*(cumulative_length- L_pile))
+
+        A[i] = pi*(D**2 - (D-2*t)**2)/4.0
+        I[i] = pi*(D**4 - (D-2*t)**4)/64.0
+        
+        cumulative_mass[i] += A[i]*l[i]*rho[i]
+        total_mass         += A[i]*l[i]*rho[i]
+        
+    for i in range(n_tower, n_tower+n_pile):
         cumulative_length += l[i]
         node_loc[i+1] = cumulative_length #Assign location of each node
 
@@ -542,20 +904,6 @@ def tower_pile_geom(D_tower_bot=6.0, D_tower_top=3.87, t_tower_bot=0.027, t_towe
         
         pile_mass += l[i]*A[i]*rho[i]
 
-    for i in range(n_pile, n_pile+n_tower):
-        cumulative_length += l[i]
-        node_loc[i+1] = cumulative_length #Assign location of each node
-        
-        D = D_tower_bot - D_gradient*(cumulative_length- L_pile - l[i]/2.)
-        t = t_tower_bot - t_gradient*(cumulative_length - L_pile - l[i]/2.)
-        
-        #print '%6.2f  %6.2f  %6.3f  %6.4f  %6.3f' %(l[i], node_loc[i], D, t, D_gradient*(cumulative_length- L_pile))
-
-        A[i] = pi*(D**2 - (D-2*t)**2)/4.0
-        I[i] = pi*(D**4 - (D-2*t)**4)/64.0
-        
-        cumulative_mass[i] += A[i]*l[i]*rho[i]
-        total_mass         += A[i]*l[i]*rho[i]
 
     #Add mass of nacelle to top most element by modifying the mass density
     j = lumped_mass_loc
@@ -565,9 +913,9 @@ def tower_pile_geom(D_tower_bot=6.0, D_tower_top=3.87, t_tower_bot=0.027, t_towe
 
     if print_output=='Yes':
         #print 'Volume of top most element = %.2f-in^3' %vol
-        #print 'Mass of pile = %.f kg' %pile_mass
-        print 'Mass of top most element of tower  = %.f kg' %(rho[j]*element_vol)
-        print 'Total mass of tower                = %.f kg\n' %total_mass
+        print 'Mass of pile = %.f kg' %pile_mass
+        print 'Mass of element with lumped mass   = %.f kg' %(rho[j]*element_vol)
+        print 'Total mass of only the tower       = %.f kg\n' %total_mass
 
         #rcParams['figure.figsize'] = 18, 4
         #figure()
@@ -797,10 +1145,10 @@ def fe_solver_dyn_2(n,l,E,I,A,rho,k_secant, base_fixity='Free'):
     #No natural boundary conditions are specified for the dynamic analysis
     
     if base_fixity =='Fixed':
-        boundary_dof     = array([0,1])
+        boundary_dof     = array([2*N-2,2*N-1])
         boundary_dof_val = array([0.,0.])
     elif base_fixity =='Pinned':
-        boundary_dof     = array([0])
+        boundary_dof     = array([2*N-2])
         boundary_dof_val = array([0.])
     else: #base_fixity=='Free'
         boundary_dof     = array([])
@@ -928,6 +1276,7 @@ def fe_solver_3(n,l,E,I,V_0,V_n,M_0,M_n,k_secant):
 ### k_secant functions for dynamic analysis ###
 ###############################################
 
+
 def calc_k_secant(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pile, L_tower, py_model='Matlock',
                   Y_secant=0.01, plot_profile='No', water_depth=0.0, **kwargs):
     '''Calculates the stiffness of the Winkler springs (i.e. secant stiffness of a p-y curve) for a wind turbine structure 
@@ -1012,6 +1361,245 @@ def calc_k_secant(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pil
     return k_secant
 
 
+def calc_k_secant_SI(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pile, L_tower, py_model='Matlock',
+                  Y_secant=0.01, plot_profile='No', water_depth=0.0, **kwargs):
+    '''Calculates the stiffness of the Winkler springs (i.e. secant stiffness of a p-y curve) for a wind turbine structure 
+    defined by 'py_dynamic.tower_pile_geom()' based on the specified soil profile ('py_dynamic.design_soil_profile()') and 
+    p-y model.
+    
+    *** Note: The soil profile data is provided in US customary units which pile geometry is specified in SI units. ***
+    
+    Input:
+    -----
+    soil_profile - A 2D tuple in the following format: ([Depth (m), Su (kPa), gamma_sub (kN/m^3), py-model, model parameter])
+                   The soil profile should be defined relative to the pile head (i.e. point of lateral load application) so
+                   that any load eccentricities can be taken into account. An example soil profile is shown below.
+                   Eg: array([[z0,Su0,gamma_sub0,  'Matlock', 0.02],
+                              [z1,Su1,gamma_sub1,  'Matlock', 0.01],
+                              [z2,Su2,gamma_sub2, 'Jeanjean',  550],
+                              ...])
+    node_loc      - 1-d array with locations of all nodes in the structure (m). 
+                    Output from 'py_dynamic.tower_pile_geom()'
+    n_elem        - Total number of elements in the structure. Output from 'py_dynamic.tower_pile_geom()'
+    D_pile        - Diameter of the pile (m)
+    py_model      - p-y model to be used. Options: 'Matlock', 'Jeanjean', 'Modified Matlock'
+    Y_secant      - The lateral displacement at which to calculate the secant stiffness of the p-y curve.
+    plot_profile  - Plot Su vs depth profile and the location of the structure relative to that soil profile.
+    water_depth   - Depth of water at this location (m) [0.0m by default]
+
+    Optional keywords: **kwargs
+    epsilon_50  - Define 'epsilon_50' if 'Matlock' p-y model is selected. (epsilon_50=0.02 by default)
+    Gmax_Su_ratio - Define G_mas/Su if Jeanjean or Kodikara p-y models are chosen. (G_max_Su_ratio = 550 by default)
+    '''
+
+    #Extract optional keyword arguments
+    epsilon_50, Gmax_Su_ratio = 0.02, 550 #Default parameters if no **kwargs are defined
+    for arg in kwargs:
+        if arg=='epsilon_50':
+            epsilon_50 = kwargs[arg]        
+        if arg=='Gmax_Su_ratio':
+            Gmax_Su_ratio = kwargs[arg]
+             
+    z_0, f_Su, f_sigma_v_eff = design_soil_profile_SI(soil_profile, plot_profile=plot_profile, y_axis_label='Depth below top of turbine tower (m)')
+
+    #P-y curves
+    z = zeros(n_elem)
+    k_secant = zeros(n_elem)
+
+    #fe_solver_dyn_3() applies springs to each element as opposed to each node as in the fd_solver.
+    #Therefore, p-y curves should be calculated at the mid-point of each element
+    for i in range(0,n_elem):
+        z[i] = (node_loc[i]+node_loc[i+1])/2.0
+
+        Su, sigma_v_eff = f_Su(z[i]), f_sigma_v_eff(z[i])
+
+        if py_model=='Matlock':
+            k_secant[i] = matlock_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant, z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='API':
+            k_secant[i] = API_RP_2GEO_2011_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant, z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='Jeanjean':
+            k_secant[i] = jeanjean_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant, z_0=z_0, Su_0=f_Su(z_0), A=Gmax_Su_ratio)
+        elif py_model=='Modified Matlock':
+            k_secant[i] = modified_matlock_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant, z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='Kodikara':
+            k_secant[i] = kodikara_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant, z_0=z_0, R1=0.5, A=Gmax_Su_ratio, print_curves='No')
+        else:
+            print "P-y model not properly defined. Please select one of the following:"
+            print "'Matlock', 'Jeanjean', 'Modified Matlock', 'Kodikara', 'API'"
+            break
+        
+    return k_secant
+
+
+def calc_k_secant_2_SI(soil_profile, node_loc, n_elem, n_pile, n_tower, D_pile, L_pile, L_tower, Y_secant, 
+                       py_model='Matlock', plot_profile='No', water_depth=0.0, **kwargs):
+    '''Calculates the stiffness of the Winkler springs (i.e. secant stiffness of a p-y curve) for a wind turbine structure 
+    defined by 'py_dynamic.tower_pile_geom()' based on the specified soil profile ('py_dynamic.design_soil_profile()') and 
+    p-y model.
+    
+    *** Note: The soil profile data is provided in US customary units which pile geometry is specified in SI units. ***
+    
+    Input:
+    -----
+    soil_profile - A 2D tuple in the following format: ([Depth (m), Su (kPa), gamma_sub (kN/m^3), py-model, model parameter])
+                   The soil profile should be defined relative to the pile head (i.e. point of lateral load application) so
+                   that any load eccentricities can be taken into account. An example soil profile is shown below.
+                   Eg: array([[z0,Su0,gamma_sub0,  'Matlock', 0.02],
+                              [z1,Su1,gamma_sub1,  'Matlock', 0.01],
+                              [z2,Su2,gamma_sub2, 'Jeanjean',  550],
+                              ...])
+    node_loc      - 1-d array with locations of all nodes in the structure (m). 
+                    Output from 'py_dynamic.tower_pile_geom()'
+    n_elem        - Total number of elements in the structure. Output from 'py_dynamic.tower_pile_geom()'
+    D_pile        - Diameter of the pile (m)
+    Y_secant      - An array with the normalized displacement (y/D) at the mid-point of each element. It is used to calculate 
+                    the secant stiffness of the corresponding p-y curve.
+    py_model      - p-y model to be used. Options: 'Matlock', 'Jeanjean', 'Modified Matlock'
+    plot_profile  - Plot Su vs depth profile and the location of the structure relative to that soil profile.
+    water_depth   - Depth of water at this location (m) [0.0m by default]
+
+    Optional keywords: **kwargs
+    epsilon_50  - Define 'epsilon_50' if 'Matlock' p-y model is selected. (epsilon_50=0.02 by default)
+    Gmax_Su_ratio - Define G_mas/Su if Jeanjean or Kodikara p-y models are chosen. (G_max_Su_ratio = 550 by default)
+    
+    Note:
+    'calc_k_secant_2_SI' is different from 'calc_k_secant_SI' because it requires an array of displacements explicity specifying
+    the displacement at the mid-point of each element rather than relying on single value for all the elements. This function is
+    called by 'dyn_lat_tower_41_SI'.
+    '''
+
+    #Extract optional keyword arguments
+    epsilon_50, Gmax_Su_ratio = 0.02, 550 #Default parameters if no **kwargs are defined
+    for arg in kwargs:
+        if arg=='epsilon_50':
+            epsilon_50 = kwargs[arg]        
+        if arg=='Gmax_Su_ratio':
+            Gmax_Su_ratio = kwargs[arg]
+             
+    z_0, f_Su, f_sigma_v_eff = design_soil_profile_SI(soil_profile, plot_profile=plot_profile, y_axis_label='Depth below top of turbine tower (m)')
+
+    #P-y curves
+    z = zeros(n_elem)
+    k_secant = zeros(n_elem)
+
+    #fe_solver_dyn_3() applies springs to each element as opposed to each node as in the fd_solver.
+    #Therefore, p-y curves should be calculated at the mid-point of each element
+    for i in range(0,n_elem):
+        z[i] = (node_loc[i]+node_loc[i+1])/2.0
+
+        Su, sigma_v_eff = f_Su(z[i]), f_sigma_v_eff(z[i])
+
+        if py_model=='Matlock':
+            k_secant[i] = matlock_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant[i], z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='API':
+            k_secant[i] = API_RP_2GEO_2011_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant[i], z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='Jeanjean':
+            k_secant[i] = jeanjean_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant[i], z_0=z_0, Su_0=f_Su(z_0), A=Gmax_Su_ratio)
+        elif py_model=='Modified Matlock':
+            k_secant[i] = modified_matlock_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant[i], z_0=z_0, epsilon_50=epsilon_50)
+        elif py_model=='Kodikara':
+            k_secant[i] = kodikara_k_secant_SI(z[i], D_pile, Su, sigma_v_eff, Y_secant=Y_secant[i], z_0=z_0, R1=0.5, A=Gmax_Su_ratio, print_curves='No')
+        else:
+            print "P-y model not properly defined. Please select one of the following:"
+            print "'Matlock', 'Jeanjean', 'Modified Matlock', 'Kodikara', 'API'"
+            break
+        
+    return k_secant
+
+
+def matlock_k_secant_SI(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0.02, loading_type='static'):
+    '''Returns secant modulus of the Matlock (1970) p-y curve at the depth of interest at the specified displacement. This
+    value can be used to calculate the stiffness of the pile-soil response at very low displacement which in turn is needed
+    to find the natural frequencies of a wind turbine attached to the said pile.
+    
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Y_secant     - The lateral displacement at which the secant modulus is calculated normalized by D
+                   Default: Y_secant = 0.01 -> y_secant = 0.01*D
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    loading_type - Either 'static' or 'cyclic'
+    
+    Output:
+    ------
+    Returns the secant modulus of the p-y curve at the specified displacement 'y' in units of N/m^2.
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    
+    #p-y curve properties
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = 3.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 9.0: N_p = 9.0
+
+            z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    y_secant = Y_secant*D
+    Y = y_secant/y_50
+    
+    #Normalized depths
+    Z    = z/D
+    Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0  
+    
+    if P > 1.0:    P = 1.0
+    
+    if loading_type=='cyclic':
+
+        if Z<=Z_cr:
+            if Y <= 3: 
+                P = P
+            elif 3 <= Y <= 15:
+                P = 0.72*(Z/Z_cr - 1)/(15.-3.) * Y[i] + 0.72*(15-3*Z/Z_cr)/(15.-3.)
+            elif Y > 15:
+                P = 0.72*Z/Z_cr
+
+        else:
+            if Y <= 3: 
+                P = P
+            elif Y>=3:
+                P = 0.72
+            
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    k_secant = p/y
+    
+    #plot(y, p, 'x')
+    #xlim([0., 1.1*y]), ylim([0., 1.1*p])
+    
+    return k_secant
+
+
 def matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0.02, loading_type='static'):
     '''Returns secant modulus of the Matlock (1970) p-y curve at the depth of interest at the specified displacement. This
     value can be used to calculate the stiffness of the pile-soil response at very low displacement which in turn is needed
@@ -1078,7 +1666,8 @@ def matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0
     Z_cr = z_cr/D
     
     #Normalized p-y curves
-    P = 0.5*Y**(1.0/3.0)  
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0  
     
     if P > 1.0:    P = 1.0
     
@@ -1104,6 +1693,100 @@ def matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0
     
     k_secant = p/y
 
+    return k_secant
+
+
+def API_RP_2GEO_2011_k_secant_SI(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0.02, loading_type='static'):
+    '''Returns secant modulus of the API RP 2GEO (2011) p-y curve at the depth of interest at the specified displacement. This
+    value can be used to calculate the stiffness of the pile-soil response at very low displacement which in turn is needed
+    to find the natural frequencies of a wind turbine attached to the said pile.
+    
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Y_secant     - The lateral displacement at which the secant modulus is calculated normalized by D
+                   Default: Y_secant = 0.01 -> y_secant = 0.01*D
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    loading_type - Either 'static' or 'cyclic'
+    
+    Output:
+    ------
+    Returns the secant modulus of the p-y curve at the specified displacement 'y' in units of N/m^2.
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    
+    #p-y curve properties
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = 3.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 9.0: N_p = 9.0
+
+            z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+     #Normalized lateral displacement
+    Y = array([-1000., -8.0, -3.0, -1.0, -0.3, -0.1, 0.0, 0.1, 0.3, 1.0, 3.0, 8.0, 1000.])
+    
+    #Normalized depths
+    Z    = z/D
+    Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = array([-1.0, -1.0, -0.72, -0.50, -0.33, -0.23, 0.0, 0.23, 0.33, 0.50, 0.72, 1.0, 1.0])
+    
+    if loading_type=='cyclic':
+
+        if Z<=Z_cr:
+            if Y <= 3: 
+                P = P
+            elif 3 <= Y <= 15:
+                P = 0.72*(Z/Z_cr - 1)/(15.-3.) * Y[i] + 0.72*(15-3*Z/Z_cr)/(15.-3.)
+            elif Y > 15:
+                P = 0.72*Z/Z_cr
+
+        else:
+            if Y <= 3: 
+                P = P
+            elif Y>=3:
+                P = 0.72
+            
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    #Displacement at which to calculate k_secant
+    y_secant = Y_secant*D
+    
+    #Secant stiffness
+    k_secant = f(y_secant)/y_secant
+    
+    #plot(y_secant, f(y_secant), 'x')
+    
     return k_secant
 
 
@@ -1179,6 +1862,79 @@ def jeanjean_k_secant(z,D, Su, sigma_v_eff, Y_secant=0.01, Su_0=0.0, z_0=0.0, A=
         
     return k_secant
 
+
+def jeanjean_k_secant_SI(z,D, Su, sigma_v_eff, Y_secant=0.01, Su_0=0.0, z_0=0.0, A=550, print_curves='No'):
+    '''
+    Returns an interp1d interpolation function which represents the Jeanjean (2009) p-y curve at the depth of interest.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Y_secant     - The lateral displacement at which the secant modulus is calculated normalized by D
+                   Default: Y_secant = 0.01 -> y_secant = 0.01*D
+    Su_0         - Undrained shear strength at the mudline (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    A            - G_max/Su (default = 550)
+    
+    Output:
+    ------
+    Returns 'k_secant' the secant stiffness of the p-y curves i.e. modulus of subgrade reaction (N/m^2).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    #Calculate G_max 
+    G_max = A*Su
+    
+    #Normalized p-y curve
+    Y = Y_secant
+    P = tanh(A/100.0*abs(Y)**(0.5))*sign(Y)
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        
+    else:
+        #P-y curves for the actual soil 
+        k = (Su - Su_0)/(z - z_0) #Secant gradient of the Su versus depth profile
+
+        '''k is the gradient of the Su profile versus depth. This model is intended to be used with soil profiles
+        with linear Su versus depth profiles and Jeanjean (2009) is not clearly on how to calculate k in the case
+        of a non-linear Su versus depth profile. In such a case, a tangential gradient, a secant gradient, 
+        or gradient of fitted straight line could be used with varying results. Back-calculations based on the c/p 
+        ratio and the submergend unit weight of the clay test bed used by Jeanjean (2009), it seems that he assumed
+        a lower bound linear Su profile.'''
+
+        if k == 0:
+            lamda = 6
+        else:
+            lamda = Su_0/(k*D)
+
+        if lamda < 6:
+            xi = 0.25 + 0.05*lamda
+        else:
+            xi = 0.55
+
+        N_p = 12 - 4*exp(-xi*(z-z_0)/D)
+    
+    #Un-normalize p-y curves
+    p_ult = N_p*Su*D
+    
+    p = P*p_ult
+    y = Y_secant*D
+    
+    k_secant = p/y
+    
+    #plot(y, p, 'ro')
+    #xlim([0., 1.1*y]), ylim([0., 1.1*p])
+        
+    return k_secant
+
 def modified_matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0.02, loading_type='static', print_curves='No'):
     '''Returns an interp1d interpolation function which represents the Matlock (1970) with the range for Np updated from 
     3 - 9 to 8 - 12 as proposed by Jeanjean (2009). These p-y curves have been named 'Modified Matlock' curves.
@@ -1243,7 +1999,8 @@ def modified_matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, eps
     Z_cr = z_cr/D
     
     #Normalized p-y curves
-    P = 0.5*Y**(1.0/3.0)
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
     
     if P > 1.0:    P = 1.0
     
@@ -1269,6 +2026,97 @@ def modified_matlock_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, eps
     y = Y*y_50
     
     k_secant = p/y
+    
+    return k_secant
+
+
+def modified_matlock_k_secant_SI(z, D, Su, sigma_v_eff, Y_secant=0.01, z_0=0.0, epsilon_50=0.02, loading_type='static'):
+    '''Returns an interp1d interpolation function which represents the Matlock (1970) with the range for Np updated from 
+    3 - 9 to 8 - 12 as proposed by Jeanjean (2009). These p-y curves have been named 'Modified Matlock' curves.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Y_secant     - The lateral displacement at which the secant modulus is calculated normalized by D
+                   Default: Y_secant = 0.01 -> y_secant = 0.01*D
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    loading_type - Either 'static' or 'cyclic'
+    
+    Output:
+    ------
+    Returns 'k_secant' the secant stiffness of the p-y curves i.e. modulus of subgrade reaction (N/m^2).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    
+    #p-y curve properties
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = 8.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 12.0: N_p = 12.0
+
+            z_cr  = (4.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    y_secant = Y_secant*D
+    Y = y_secant/y_50
+    
+    #Normalized depths
+    Z    = z/D
+    Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0  
+    
+    if P > 1.0:    P = 1.0
+    
+    if loading_type=='cyclic':
+
+        if Z<=Z_cr:
+            if Y <= 3: 
+                P = P
+            elif 3 <= Y <= 15:
+                P = 0.72*(Z/Z_cr - 1)/(15.-3.) * Y[i] + 0.72*(15-3*Z/Z_cr)/(15.-3.)
+            elif Y > 15:
+                P = 0.72*Z/Z_cr
+
+        else:
+            if Y <= 3: 
+                P = P
+            elif Y>=3:
+                P = 0.72
+            
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    k_secant = p/y
+    
+    #plot(y, p, 'ro')
+    #xlim([0., 1.1*y]), ylim([0., 1.1*p])
     
     return k_secant
 
@@ -1362,7 +2210,7 @@ def kodikara_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01,z_0=0.0, alpha=0.0, R
 
             if N_p > 12.0: N_p = 12.0
 
-            z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+            z_cr  = (4.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
 
         except ZeroDivisionError:
             print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
@@ -1380,6 +2228,115 @@ def kodikara_k_secant(z, D, Su, sigma_v_eff, Y_secant=0.01,z_0=0.0, alpha=0.0, R
 
     f = interp1d(y,p, kind='linear')
     k_secant = f(Y_secant*D)/(Y_secant*D)
+    
+    return k_secant
+
+
+def kodikara_k_secant_SI(z, D, Su, sigma_v_eff, Y_secant=0.01,z_0=0.0, alpha=0.0, R1=0.5, A=550, print_curves='No'):
+    '''
+    Returns an interp1d interpolation function which represents a Bezier-type p-y curve by Kodikara et al. (2009), 
+    at the depth of interest.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the 
+    main program.
+
+    Input:
+    -----
+    z            - Depth (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effective vertical stress (Pa)
+    Y_secant     - The lateral displacement at which the secant modulus is calculated normalized by D
+                   Default: Y_secant = 0.01 -> y_secant = 0.01*D
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    A            - Shear modulus to undrained shear strength ratio, G/Su (default = 550)
+    R1           - Tensile strength to undrained shear strength ratio, sigma_t = R1*Su (default=0.5)
+    alpha        - Pile-soil adhesion in shear w.r.t. Su, 0 <= alpha <= 1 (alpha = 0.0 by default)
+    
+    Note: Pile-soil adhesion in tension is assumed to be equal to the tensile strengh of the soil
+    
+    Output:
+    ------
+    Returns 'k_secant' the secant stiffness of the p-y curves i.e. modulus of subgrade reaction (N/m^2).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+
+    """
+    The total vertical stress is needed for the gapping criterion but it is not currently available
+    in the soil profile input used in the py_analysis_2 function. Therefore let the total overburden
+    stress be calculated as follows. This approximation should be updated in a future version of this
+    function.
+    """
+    sigma_v = sigma_v_eff + 9810.0*(z-z_0)
+    
+    #Bezier curve parameters
+    sigma_t = R1*Su #Tensile strength of the soil
+    G       = A*Su  #Shear modulus of the soil
+    
+    #print "z = %.2f, sigma_t = %.2f, sigma_v = %.2f, 7*Su = %.2f" %(z, sigma_t, sigma_v, 7*Su)
+    
+    if (sigma_t + sigma_v) >= 7*Su:
+        #Gap will not be created
+        a = interp1d([0,1], [6.615,7.142], kind='linear')
+        b = interp1d([0,1], [1.065,1.093], kind='linear')
+        B = 0.4144
+        C = 3.7881
+        #print 'Gap not created at z = %.1f-in, sigma_v_eff = %.1f-psf, Su = %.1f-psf' %(z,sigma_v_eff,Su)
+    
+    elif (sigma_t + sigma_v) < 7*Su:
+        #Gap will be created
+        a = interp1d([0,1], [52.96,54.60], kind='linear')
+        b = interp1d([0,1], [1.169,1.290], kind='linear')      
+        B = 0.8317
+        C = 2.1190
+        #print 'Gap created at z = %.1f-in, sigma_v_eff = %.1f-psf, Su = %.1f-psf' %(z,sigma_v_eff,Su)
+    
+    
+    K_i = G*(alpha*B + C)
+    y_u = a(alpha)*D/A
+    y_e = b(alpha)*D/A
+    
+    
+    #print 'K_i = %.2e, y_e = %.2e, y_u = %.2e' %(K_i, y_e, y_u)
+    
+    
+    #Calculate p_u according to Matlock (1970) with Jeanjan (2009) bounding values for N_p
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        y = linspace(-5*D, 5*D, 100)
+        p = zeros(len(y))
+    
+    else:
+        try:
+            N_p   = 8.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 12.0: N_p = 12.0
+
+            z_cr  = (4.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+        p_u = Su*N_p*D
+
+        #p-y curves
+        u = linspace(0,1,20)       #Dummy variable
+
+        y_non_lin_range = (1-u)**2*y_e     + 2*u*(1-u)*(p_u/K_i) + u**2*y_u
+        p_non_lin_range = (1-u)**2*K_i*y_e + 2*u*(1-u)*p_u       + u**2*p_u
+
+        y = concatenate([array([min(-y_u,-5*D)]), -y_non_lin_range[::-1], array([0]), y_non_lin_range, array([5*D])])
+        p = concatenate([array([-p_u]), -p_non_lin_range[::-1], array([0]), p_non_lin_range, array([p_u])])
+
+    f = interp1d(y,p, kind='linear')
+    k_secant = f(Y_secant*D)/(Y_secant*D)
+
+    #plot(Y_secant*D, f(Y_secant*D), 'ro')
+    #xlim([0., 1.1*Y_secant*D]), ylim([0., 1.1*f(Y_secant*D)])
     
     return k_secant
 
@@ -1436,7 +2393,7 @@ def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loadin
     y_50  = 2.5*epsilon_50*D
     
     #Normalized lateral displacement
-    Y = linspace(-200,200,1000)
+    Y = concatenate((-logspace(3,-5,100),[0],logspace(-4,3,100)))
     
     #Normalized depths
     Z    = z/D
@@ -1488,6 +2445,396 @@ def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loadin
         plot(y,p), xlabel('y (m)'), ylabel('p (N/m)')
         grid(True)
         xlim([-2*D,2*D])
+    
+    return f
+
+
+def API_RP_2GEO_2011_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loading_type='static', print_curves='No'):
+    '''Returns an interp1d interpolation function which represents the API RP 2GEO (2011) p-y curve at the depth of interest.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    z_0         - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    loading_type - Either 'static' or 'cyclic'
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (N/m) and 'y' (m).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    
+    #p-y curve properties
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = 3.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 9.0: N_p = 9.0
+
+            z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    Y = array([-1000., -8.0, -3.0, -1.0, -0.3, -0.1, 0.0, 0.1, 0.3, 1.0, 3.0, 8.0, 1000.])
+    
+    #Normalized depths
+    Z    = z/D
+    Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = array([-1.0, -1.0, -0.72, -0.50, -0.33, -0.23, 0.0, 0.23, 0.33, 0.50, 0.72, 1.0, 1.0])
+    
+    if loading_type=='cyclic':
+        
+        for i in range(0,len(Y)):
+
+            if Z<=Z_cr:
+                if abs(Y[i]) <= 3: 
+                    P[i] = P[i]
+                elif 3 <= Y[i] <= 15:
+                    P[i] = 0.72*(Z/Z_cr - 1)/(15-3) * Y[i] + 0.72*(15-3*Z/Z_cr)/(15-3)
+                elif Y[i] > 15:
+                    P[i] = 0.72*Z/Z_cr
+                elif -3 >= Y[i] >= -15:
+                    P[i] = 0.72*(Z/Z_cr - 1)/(15-3) * Y[i] - 0.72*(15-3*Z/Z_cr)/(15-3)
+                elif Y[i] < -15:
+                    P[i] = -0.72*Z/Z_cr
+
+            else:
+                if abs(Y[i]) <= 3: 
+                    P[i] = P[i]
+                elif Y[i]>=3:
+                    P[i] = 0.72
+                else:
+                    P[i] = -0.72
+            
+    
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    #Secant stiffness
+    #k = f(y1)/y1
+    
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p), xlabel('y (m)'), ylabel('p (N/m)')
+        grid(True)
+        xlim([-2*D,2*D])
+    
+    return f
+
+def modified_matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loading_type='static', print_curves='No'):
+    '''Returns an interp1d interpolation function which represents the Matlock (1970) with the range for Np updated from 
+    3 - 9 to 8 - 12 as proposed by Jeanjean (2009). These p-y curves have been named 'Modified Matlock' curves.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    z_0         - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    loading_type - Either 'static' or 'cyclic'
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (N/m) and 'y' (m).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    
+    #p-y curve properties
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = 8.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 12.0: N_p = 12.0
+
+            z_cr  = (4.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    Y = concatenate((-logspace(3,-5,100),[0],logspace(-4,3,100)))
+    
+    #Normalized depths
+    Z    = z/D
+    Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
+    for i in range(0,len(Y)): 
+        if P[i] > 1.0:    P[i] = 1.0
+        elif P[i] < -1.0: P[i] = -1.0
+    
+    if loading_type=='cyclic':
+        
+        for i in range(0,len(Y)):
+
+            if Z<=Z_cr:
+                if abs(Y[i]) <= 3: 
+                    P[i] = P[i]
+                elif 3 <= Y[i] <= 15:
+                    P[i] = 0.72*(Z/Z_cr - 1)/(15-3) * Y[i] + 0.72*(15-3*Z/Z_cr)/(15-3)
+                elif Y[i] > 15:
+                    P[i] = 0.72*Z/Z_cr
+                elif -3 >= Y[i] >= -15:
+                    P[i] = 0.72*(Z/Z_cr - 1)/(15-3) * Y[i] - 0.72*(15-3*Z/Z_cr)/(15-3)
+                elif Y[i] < -15:
+                    P[i] = -0.72*Z/Z_cr
+
+            else:
+                if abs(Y[i]) <= 3: 
+                    P[i] = P[i]
+                elif Y[i]>=3:
+                    P[i] = 0.72
+                else:
+                    P[i] = -0.72
+            
+    
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    #Secant stiffness
+    #k = f(y1)/y1
+    
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p), xlabel('y (m)'), ylabel('p (N/m)')
+        grid(True)
+        xlim([-2*D,2*D])
+    
+    return f
+
+
+def jeanjean_py_curves_SI(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, print_curves='No'):
+    '''
+    Returns an interp1d interpolation function which represents the Jeanjean (2009) p-y curve at the depth of interest.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Su_0         - Undrained shear strength at the mudline (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    A            - G_max/Su (default = 550)
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (N/m) and 'y' (m).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    #Calculate G_max 
+    G_max = A*Su
+    
+    #Normalized p-y curve
+    Y = linspace(-3,3,500) 
+    P = tanh(A/100.0*abs(Y)**(0.5))*sign(Y)
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        
+    else:
+        #P-y curves for the actual soil 
+        k = (Su - Su_0)/(z - z_0) #Secant gradient of the Su versus depth profile
+
+        '''k is the gradient of the Su profile versus depth. This model is intended to be used with soil profiles
+        with linear Su versus depth profiles and Jeanjean (2009) is not clearly on how to calculate k in the case
+        of a non-linear Su versus depth profile. In such a case, a tangential gradient, a secant gradient, 
+        or gradient of fitted straight line could be used with varying results. Back-calculations based on the c/p 
+        ratio and the submergend unit weight of the clay test bed used by Jeanjean (2009), it seems that he assumed
+        a lower bound linear Su profile.'''
+
+        if k == 0:
+            lamda = 6
+        else:
+            lamda = Su_0/(k*D)
+
+        if lamda < 6:
+            xi = 0.25 + 0.05*lamda
+        else:
+            xi = 0.55
+
+        N_p = 12 - 4*exp(-xi*(z-z_0)/D)
+    
+    #Un-normalize p-y curves
+    p_ult = N_p*Su*D
+    
+    p = P*p_ult
+    y = Y*D
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    #Print curves
+    if print_curves=='Yes':
+        plot(y,p)
+        xlabel('y (m)'), ylabel('p (N/m)')
+        grid(True)
+        
+    return f
+
+
+def kodikara_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, alpha=0.0, R1=0.5, A=250, print_curves='No'):
+    '''
+    Returns an interp1d interpolation function which represents a Bezier-type p-y curve by Kodikara et al. (2009), 
+    at the depth of interest.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the 
+    main program.
+
+    Input:
+    -----
+    z            - Depth (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effective vertical stress (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    A            - Shear modulus to undrained shear strength ratio, G/Su (default = 250)
+    R1           - Tensile strength to undrained shear strength ratio, sigma_t = R1*Su (default=0.5)
+    alpha        - Pile-soil adhesion in shear w.r.t. Su, 0 <= alpha <= 1 (alpha = 0.0 by default)
+    
+    Note: Pile-soil adhesion in tension is assumed to be equal to the tensile strengh of the soil
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (N/m) and 'y' (m).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+
+    """
+    The total vertical stress is needed for the gapping criterion but it is not currently available
+    in the soil profile input used in the py_analysis_2 function. Therefore let the total overburden
+    stress be calculated as follows. This approximation should be updated in a future version of this
+    function.
+    """
+    sigma_v = sigma_v_eff + 9810.0*(z-z_0) #9810.0 N/m^3
+    
+    #Bezier curve parameters
+    sigma_t = R1*Su #Tensile strength of the soil
+    G       = A*Su  #Shear modulus of the soil
+    
+    #print "z = %.2f, sigma_t = %.2f, sigma_v = %.2f, 7*Su = %.2f" %(z, sigma_t, sigma_v, 7*Su)
+    
+    if (sigma_t + sigma_v) >= 7*Su:
+        #Gap will not be created
+        a = interp1d([0,1], [6.615,7.142], kind='linear')
+        b = interp1d([0,1], [1.065,1.093], kind='linear')
+        B = 0.4144
+        C = 3.7881
+        #print 'Gap not created at z = %.1f-in, sigma_v_eff = %.1f-psf, Su = %.1f-psf' %(z,sigma_v_eff,Su)
+    
+    elif (sigma_t + sigma_v) < 7*Su:
+        #Gap will be created
+        a = interp1d([0,1], [52.96,54.60], kind='linear')
+        b = interp1d([0,1], [1.169,1.290], kind='linear')      
+        B = 0.8317
+        C = 2.1190
+        #print 'Gap created at z = %.1f-in, sigma_v_eff = %.1f-psf, Su = %.1f-psf' %(z,sigma_v_eff,Su)
+    
+    
+    K_i = G*(alpha*B + C)
+    y_u = a(alpha)*D/A
+    y_e = b(alpha)*D/A
+    
+    
+    #print 'K_i = %.2e, y_e = %.2e, y_u = %.2e' %(K_i, y_e, y_u)
+    
+    
+    #Calculate p_u according to Matlock (1970) with Jeanjan (2009) bounding values for N_p
+    J     = 0.5
+    
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        y = linspace(-5*D, 5*D, 100)
+        p = zeros(len(y))
+    
+    else:
+        try:
+            N_p   = 8.0 + sigma_v_eff/Su + J*(z-z_0)/D 
+
+            if N_p > 12.0: N_p = 12.0
+
+            z_cr  = (4.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Su = 0.0 so z_cr cannot be calculated."
+    
+        p_u = Su*N_p*D
+
+        #p-y curves
+        u = linspace(0,1,20)       #Dummy variable
+
+        y_non_lin_range = (1-u)**2*y_e     + 2*u*(1-u)*(p_u/K_i) + u**2*y_u
+        p_non_lin_range = (1-u)**2*K_i*y_e + 2*u*(1-u)*p_u       + u**2*p_u
+
+        y = concatenate([array([min(-y_u,-5*D)]), -y_non_lin_range[::-1], array([0]), y_non_lin_range, array([5*D])])
+        p = concatenate([array([-p_u]), -p_non_lin_range[::-1], array([0]), p_non_lin_range, array([p_u])])
+    
+ 
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p, '-'), xlabel('y (m)'), ylabel('p (N/m)')
+        grid(True)
+        
+    #Interpolation function for p-y curve
+    f = interp1d(y,p, kind='linear')   
     
     return f
 
@@ -1559,7 +2906,7 @@ def design_soil_profile(soil_profile, plot_profile='No', y_axis_label='Depth bel
     return z0, f_Su, f_sigma_v_eff
 
 
-def design_soil_profile_SI(soil_profile, plot_profile='No'):
+def design_soil_profile_SI(soil_profile, plot_profile='No', y_axis_label='Depth below the pile head (m)'):
     '''Define the soil profile used by the p-y analyzer. Outputs 'interp1d' functions containing Su and sigma'_v 
     profiles to be used by the p-y curve functions.
     
@@ -1597,8 +2944,13 @@ def design_soil_profile_SI(soil_profile, plot_profile='No'):
    
     if plot_profile=='Yes':
         #Plot Su vs z profile for confirmation
-        plot(Su, depth, '-o')
-        xlabel('Undrained shear strength (kPa)'), ylabel('Depth below pile head (m)'), grid(True)
+        plot(Su, depth, '-o', label=r'$S_u$')
+        legend(loc='lower left')
+        xlabel('Undrained shear strength (kPa)'), ylabel(y_axis_label), grid(True)
+
+        #Plot mudline/ground surface
+        plot([-0.5*max(Su),max(Su)], [z0,z0], '--', color='brown')
+        text(-0.5*max(Su), 0.95*z0, 'Mudline', color='brown')
         
         ax = gca()
         ax.invert_yaxis(), ax.xaxis.tick_top(), ax.xaxis.set_label_position('top')
