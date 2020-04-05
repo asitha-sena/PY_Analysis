@@ -344,6 +344,12 @@ def py_analysis_2(soil_profile, L=10.0, D=2.0, t = 0.1, E=29e6, F = 0.0, y_0=0.0
         elif py_model=='MM-1':
             py_funs.append(MM_1_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
                                                   Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
+        elif py_model=='MM-11':
+            py_funs.append(MM_11_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
+                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
+        elif py_model=='MM-12':
+            py_funs.append(MM_12_py_curves(z[i], D, f_Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
+                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
         elif py_model=='MM-2':
             py_funs.append(MM_2_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
                                                   Su0=f_Su(z_0+0.01), gapping=gapping, N_p_max=N_p_max))
@@ -2462,7 +2468,7 @@ def matlock_py_curves_no_gapping(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02
 
 def MM_1_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02, 
                            gapping='No', alpha = 1.0, print_curves='No',ls='-', return_Np='No'):
-    '''Returns an interp1d interpolation function which represents the Matlock (1970) p-y curve at the depth of interest.
+    '''Returns an interp1d interpolation function which represents the MM-1 p-y curve at the depth of interest.
     
     Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
 
@@ -2479,12 +2485,17 @@ def MM_1_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02,
     z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (in)
     epsilon_50   - Strain at half the strength as defined by Matlock (1970).
                    Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
-    gapping      - 'Yes' -> N_p = 2.0 + gamma*z/Su + (Su0 + Su)/Su * sqrt(2)*(z/D)
-                   'No'  -> N_p = 4.0              + (Su0 + Su)/Su * 2*sqrt(2)*(z/D)
+                   If the 'Auto' option is selected, then epsilon_50 is automatically calculated
+                   based on the (S_u/(P_a + sigma_v_eff)) ratio. See Senanayake (2016) Phd Thesis.
+    gapping      - 'Yes' -> N_p = 2.0*sqrt(3**alpha) + gamma_eff*z/Su + (Su0 + Su)/Su * sqrt(2)*(z/D)
+                   'No'  -> N_p = 4.0*sqrt(3**alpha) + (Su0 + Su)/Su * 2*sqrt(2)*(z/D)
     alpha        - Coefficient of pile-soil interface adhesion. 1.0 for a rough pile and 0.0 for a smooth pile.
                    The maximum value of the lateral bearing capacity factor will be calculated as follows:
                    N_p_max = 9 + 3*alpha
-                   Use option 'API' to calculate using the API method (Randolph & Murphy, 1985).
+                   If the 'API' option is selected, then alpha is automatically calculated
+                   based on the (S_u/sigma_v_eff) ratio as per Equation 18 in API RP 2GEO (2011),
+                   following Randolph & Murphy (1985).
+                   
 
     Optional argument:
     return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how well visualize the
@@ -2523,15 +2534,15 @@ def MM_1_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02,
     
     #p-y curve properties
     if gapping=='No':
-        N_p0 = 4.0*sqrt(3**alpha)
+        N_p0 = 4.0 + alpha*pi
         N_p1 = 0.0
         J    = (Su0 + Su)/Su * 2*sqrt(2)
     else:
-        N_p0 = 2.0*sqrt(3**alpha)
+        N_p0 = 2.0 + alpha*pi/2
         N_p1 = sigma_v_eff/Su
         J    = (Su0 + Su)/Su * sqrt(2)
     
-    if (z-z_0)<=0:
+    if (z-z_0)<0:
         #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
         N_p  = 0.0
         z_cr = 1.0 #Dummy value to keep program from crashing
@@ -2596,6 +2607,375 @@ def MM_1_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02,
         return f, N_p
     else:
         return f
+        
+        
+###### MM-11 and supporting functions ####
+def calc_dp_dtheta(theta,z,D,Su0,Su,alpha):
+    
+    #def sec(theta):
+    #    return 1.0/cos(theta)
+    #
+    #def csc(theta):
+    #    return 1.0/sin(theta)
+    
+    sec = lambda theta: 1.0/cos(theta)
+    csc = lambda theta: 1.0/sin(theta)
+    
+    f = D*Su*(sec(theta)**2 - (1 + pi*alpha/2)*csc(theta)**2) + (Su0+Su)*sec(theta)*tan(theta)*z
+    
+    return f
+
+def calc_theta(z, D, Su0, Su, alpha):
+    """
+    Input:
+    -----
+    alpha  - adhesion factor at the pile-soil interface (0.0 < alpha < 1.0)
+    Su0    - Su of the soil at the mudline (psf). Give a very small value instead of zero
+              to avoid numerical instability.
+    Su     - Su at depth of p-y curve
+    
+    Output:
+    ------
+    theta   - critical slope angles (rad)
+    
+    Plot of theta versus normalized depth.
+    """
+    
+    import scipy.optimize as optimize
+    
+    theta = optimize.bisect(calc_dp_dtheta, pi/12,pi/3,args=(z,D,Su0,Su,alpha))
+
+    return theta
+
+def calc_Np(z=1.0, D=1.0, S_u0=1.e-5,S_u=1.0,sigma_v_eff=1.0, alpha=0.0, gapping='Yes'):
+    """
+    Input:
+    -----
+    alpha   - adhesion factor at the pile-soil interface (0.0 < alpha < 1.0)
+    S_u0    - Su of the soil at the mudline (kPa). Give a very small value instead of zero
+              to avoid numerical instability.
+    lamda   - Rate of increase of Su versus depth (kPa/m)
+    gamma_effective   - Effective unit weight of soil (kN/m^3)
+    D       - Pile diameter (m)
+    gapping - 'Yes' means that only the resistance from the passive soil wedge is considered.
+              'No' means that the resistance from both the active and passive soil wedges are considered.
+    plot_Np - Plots N_p versus normalized depth. ('Yes' by default)
+    invert_y_axis - Inverts y-axis in plot. ('Yes' by default)
+               
+               
+    Output:
+    ------
+    N_p      - 1-d array with lateral bearing capacity factors
+    
+    Plot of N_p versus normalized depth.
+    """
+    
+    N_p_max = 9.0 + 3.0*alpha
+    
+    theta = calc_theta(z,D,S_u0,S_u,alpha)
+    
+    
+    if gapping=='Yes':
+        N_p = (1./(sin(theta)*cos(theta)) + (pi/2)*alpha/tan(theta) + sigma_v_eff/S_u
+                          + (S_u0 + S_u)/S_u * 1./cos(theta) * z/D)
+
+        if N_p > N_p_max: N_p = N_p_max
+                
+    elif gapping=='No':
+        N_p = 2*(1./(sin(theta)*cos(theta)) + (pi/2)*alpha/tan(theta) 
+                          + (S_u0 + S_u)/S_u * 1./cos(theta) * z/D)
+
+        if N_p > N_p_max: N_p = N_p_max
+    
+    return N_p
+
+
+def MM_11_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02, 
+                           gapping='No', alpha = 1.0, print_curves='No',ls='-', return_Np='No'):
+    '''Returns an interp1d interpolation function which represents the MM-11 p-y curve at the depth of interest. MM-11 is 
+    different from MM-1 since it implements an optimization routine to determine the critical angles of the soil wedge at
+    each depth rather than relying an approximation as done in MM-1.
+    
+    It requires the ancillary functions 'calc_dp_dtheta', 'calc_theta', and 'calc_Np' to work because it minimized Np with
+    respect to 'theta' at each depth, unlike 'MM_1_py_curves' which assumes theta=pi/4 as an approximation. The resulting p-y 
+    analysis should be more accurate but slower than using 'MM_1_py_curves()'.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (in)
+    D            - Pile diameter (in)
+    Su           - Undrained shear strength at depth 'z' (psf)
+    Su0          - Undrained shear strength at depth 'z0' (psf)
+                   Note: If setting Su0 based on the 'interp1d' function for Su from 'design_soil_profile' then, 
+                   it is safer to set Su0=f_Su(z0+0.01) rather than Su0=f_Su(z0) since f_Su(z0) could be zero 
+                   and lead to numerical instabilities in the code. 'py_analysis_2()' uses Su0=f_Su(z0+0.01) by default.
+    sigma_v_eff  - Effectve vertical stress (psf)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (in)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+                   If the 'Auto' option is selected, then epsilon_50 is automatically calculated
+                   based on the (S_u/(P_a + sigma_v_eff)) ratio. See Senanayake (2016) Phd Thesis.
+    gapping      - 'Yes' -> N_p = 2.0*sqrt(3**alpha) + gamma_eff*z/Su + (Su0 + Su)/Su * sqrt(2)*(z/D)
+                   'No'  -> N_p = 4.0*sqrt(3**alpha) + (Su0 + Su)/Su * 2*sqrt(2)*(z/D)
+    alpha        - Coefficient of pile-soil interface adhesion. 1.0 for a rough pile and 0.0 for a smooth pile.
+                   The maximum value of the lateral bearing capacity factor will be calculated as follows:
+                   N_p_max = 9 + 3*alpha
+                   If the 'API' option is selected, then alpha is automatically calculated
+                   based on the (S_u/sigma_v_eff) ratio as per Equation 18 in API RP 2GEO (2011),
+                   following Randolph & Murphy (1985).
+                   
+
+    Optional argument:
+    return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how well visualize the
+                   effect and depth of the gap and should only be used when this function is used by itself.
+                   DO NOT set it to 'Yes' for p-y analysis as the program will crash!
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (lb/in) and 'y' (in).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    #Convert to psi
+    Su  = Su/144.
+    Su0 = Su0/144.
+    sigma_v_eff = sigma_v_eff/144.
+    
+    psi = Su/sigma_v_eff
+    
+    #Calculate alpha based on the API method
+    if alpha=='API':
+        if psi<1.0:
+            alpha = min(0.5*psi**(-0.5),1.0)
+        elif psi>1.0:
+            alpha = min(0.5*psi**(-0.25),1.0)
+        elif z<z_0:
+            alpha=0.0 #Assign default value to alpha above the mudline to avoid numerical errors.
+        else:
+            print 'psi = %2.2f' %psi
+            raise Exception('Failed to calculate alpha based on API method!')
+    
+    #Calculate N_p_max based on pile-soil interface adhesion factor
+    N_p_max = 9.0 + 3.0*alpha
+    
+    
+    if z>z_0:
+        N_p = calc_Np(z=z-z_0, D=D, S_u0=Su0,S_u=Su, sigma_v_eff=sigma_v_eff, alpha=alpha, gapping=gapping)
+        
+        #z_cr = 1.0 #Dummy value to keep program from crashing
+        
+    else:
+        N_p = 0.0
+        
+        #z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+    
+    
+    if epsilon_50=='Auto' and Su!=0:
+        #epsilon_50 = min(0.02, 0.004 + 0.0032*(sigma_v_eff/Su))
+        
+        P_a = 14.7 #psi, atmospheric pressure
+        psi = Su/(P_a + sigma_v_eff) #Where (P_a + sigma_v_eff) is the confining stress
+        epsilon_50 = -0.0318*psi**0.109 + 0.0395 #This relationship was obtained by fitting y = a*x**b + c
+                                                 #to Su and epsilon_50 data from Reese et al (1975)
+
+        if epsilon_50 > 0.02:
+            epsilon_50 = 0.02
+        elif epsilon_50 < 0.004:
+            epsilon_50 = 0.004
+
+    elif epsilon_50=='Auto' and Su==0:
+        epsilon_50=0.02
+        
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    Y = concatenate((-logspace(3,-4,100),[0],logspace(-4,3,100)))
+    
+    #Normalized depths
+    Z    = z/D
+    #Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
+    for i in range(0,len(Y)): 
+        if P[i] > 1.0:    P[i] = 1.0
+        elif P[i] < -1.0: P[i] = -1.0
+            
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p,ls)
+        xlabel('y (in)'), ylabel('p (lb/in)')
+        grid(True)
+
+    if return_Np == 'Yes':
+        return f, N_p
+    else:
+        return f
+
+##################
+
+
+def MM_12_py_curves(z, D, f_Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, 
+                           gapping='No', alpha = 1.0, print_curves='No',ls='-', return_Np='No'):
+    '''Returns an interp1d interpolation function which represents the MM-12 p-y curve at the depth of interest. MM-12 is 
+    different from MM-1 since calculates the N_p values by an integration over the depth, so it is valid for any Su versus
+	depth profile. 
+	It is better suited for layered and nonlinear Su profiles than MM-1 or MM-11.
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+    
+    Can handle nonlinear and irregular S_u versus z profiles whereas MM_1_py_curves() and MM_11_py_curves() can only
+    handle linear or approximately linear profiles. This function is slower than MM_1_py_curves() because it has to 
+    calculate the integrals of the S_u vs z curve in order calculate N_p.
+    
+    Input:
+    -----
+    z            - Depth relative to pile head (in)
+    D            - Pile diameter (in)
+    f_Su         - Interp1d object with undrained shear strength at depth 'z' (psf)
+    sigma_v_eff  - Effectve vertical stress (psf)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (in)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+                   If the 'Auto' option is selected, then epsilon_50 is automatically calculated
+                   based on the (S_u/(P_a + sigma_v_eff)) ratio. See Senanayake (2016) Phd Thesis.
+    gapping      - 'Yes' -> N_p = 2.0*sqrt(3**alpha) + gamma_eff*z/Su + (Su0 + Su)/Su * sqrt(2)*(z/D)
+                   'No'  -> N_p = 4.0*sqrt(3**alpha) + (Su0 + Su)/Su * 2*sqrt(2)*(z/D)
+    alpha        - Coefficient of pile-soil interface adhesion. 1.0 for a rough pile and 0.0 for a smooth pile.
+                   The maximum value of the lateral bearing capacity factor will be calculated as follows:
+                   N_p_max = 9 + 3*alpha
+                   If the 'API' option is selected, then alpha is automatically calculated
+                   based on the (S_u/sigma_v_eff) ratio as per Equation 18 in API RP 2GEO (2011),
+                   following Randolph & Murphy (1985).
+                   
+
+    Optional argument:
+    return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how well visualize the
+                   effect and depth of the gap and should only be used when this function is used by itself.
+                   DO NOT set it to 'Yes' for p-y analysis as the program will crash!
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (lb/in) and 'y' (in).
+    '''
+    
+    from scipy.interpolate import interp1d
+    from scipy.integrate import quad
+    
+    #Convert to psi
+    Su  = f_Su(z)/144.
+    Su0 = f_Su(z_0)/144.
+    sigma_v_eff = sigma_v_eff/144.
+    
+    Su_int, temp = quad(f_Su,0,z) #Integral of Su vs z curve from 0 to z
+    Su_int       = Su_int/144.
+    
+    psi = Su/sigma_v_eff
+    
+    #Calculate alpha based on the API method
+    if alpha=='API':
+        if psi<1.0:
+            alpha = min(0.5*psi**(-0.5),1.0)
+        elif psi>1.0:
+            alpha = min(0.5*psi**(-0.25),1.0)
+        elif z<z_0:
+            alpha=0.0 #Assign default value to alpha above the mudline to avoid numerical errors.
+        else:
+            print 'psi = %2.2f' %psi
+            raise Exception('Failed to calculate alpha based on API method!')
+    
+    #Calculate N_p_max based on pile-soil interface adhesion factor
+    N_p_max = 9.0 + 3.0*alpha
+    
+    #p-y curve properties
+    if gapping=='No':
+        N_p0 = 4.0 + alpha*pi
+        N_p1 = 0.0
+        N_p2 = 4*sqrt(2)/Su/D*Su_int
+    else:
+        N_p0 = 2.0 + alpha*pi/2
+        N_p1 = sigma_v_eff/Su
+        N_p2 = 2*sqrt(2)/Su/D*Su_int
+    
+    if (z-z_0)<0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+        z_cr = 1.0 #Dummy value to keep program from crashing
+    
+    else:
+        try:
+            N_p   = N_p0 + N_p1 + N_p2
+            
+            if N_p > N_p_max: N_p = N_p_max
+
+            #z_cr  = (6.0 - sigma_v_eff/Su)*D/J  #This condition is implemented to avoid zero division errors.
+
+        except ZeroDivisionError:
+            print "Division by zero! Check if Su = 0.0 at z = 0.0"
+    
+    if epsilon_50=='Auto' and Su!=0:
+        #epsilon_50 = min(0.02, 0.004 + 0.0032*(sigma_v_eff/Su))
+        
+        P_a = 14.7 #psi, atmospheric pressure
+        psi = Su/(P_a + sigma_v_eff) #Where (P_a + sigma_v_eff) is the confining stress
+        epsilon_50 = -0.0318*psi**0.109 + 0.0395 #This relationship was obtained by fitting y = a*x**b + c
+                                                #to Su and epsilon_50 data from Reese et al (1975)
+
+        if epsilon_50 > 0.02:
+            epsilon_50 = 0.02
+        elif epsilon_50 < 0.004:
+            epsilon_50 = 0.004
+
+    elif epsilon_50=='Auto' and Su==0:
+        epsilon_50=0.02
+        
+    p_ult = Su*N_p*D
+    y_50  = 2.5*epsilon_50*D
+    
+    #Normalized lateral displacement
+    Y = concatenate((-logspace(3,-4,100),[0],logspace(-4,3,100)))
+    
+    #Normalized depths
+    #Z    = z/D
+    #Z_cr = z_cr/D
+    
+    #Normalized p-y curves
+    P = 0.5*sign(Y)*abs(Y)**(1.0/3.0)  #sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+                                           #Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
+    for i in range(0,len(Y)): 
+        if P[i] > 1.0:    P[i] = 1.0
+        elif P[i] < -1.0: P[i] = -1.0
+            
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*y_50
+    
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p,ls)
+        xlabel('y (in)'), ylabel('p (lb/in)')
+        grid(True)
+
+    if return_Np == 'Yes':
+        return f, N_p
+    else:
+        return f
+        
 
 def MM_2_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su0=0.0, epsilon_50=0.02, 
                            gapping='No', N_p_max = 12.0, print_curves='No',ls='-'):
@@ -3008,9 +3388,11 @@ def kodikara_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, alpha=0.0, R1=0.5, A=250,
 
 def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='No', alpha = 1.0, TE_DSS_ratio=0.9,
                             custom_py='No', a=0.0,strain_f=0.0, print_curves='No',ls='-', return_Np='No'):
-    '''Returns an interp1d interpolation function which represents the Matlock (1970) p-y curve at the depth of interest.
+    '''Returns an interp1d interpolation function which represents the  p-y curves by Jeanjean et al (2017) at the depth of interest.
     
-    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+    Important: 
+    -Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+    -Make sure that Su_0 > 0. If Su_0 = 0, then lamda = 0 => log(lamda) = inf! Therefore, N_p calculation will fail.
 
     Input:
     -----
@@ -3166,6 +3548,102 @@ def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='N
         return f, N_p
     else:
         return f
+		
+		
+def API_sand_py_curves(z, D, phi_dr, sigma_v_eff, z_0=0.0, print_curves='No',ls='-', return_Np='No'):
+    '''Returns an interp1d interpolation function which represents the API sand p-y curve at the depth of 
+    interest. 
+    
+    ***Please note that the although the 'py_method.design_soil_profile' function is versatile enough to be 
+    used with sand p-y curves, it has not yet been properly updated to plot friction angles and the xlabel in 
+    the plot will still show up as undrained shear strength.***
+    
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in 
+    the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (in)
+    D            - Pile diameter (in)
+    phi_dr       - Drained angle of friction (deg)
+    sigma_v_eff  - Effectve vertical stress (psf)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (in)
+                   
+
+    Optional argument:
+    return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how 
+                   well visualize the effect and depth of the gap and should only be used when this function is used by itself.
+                   DO NOT set it to 'Yes' for p-y analysis as the program will crash!
+    
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest. 
+    'p' (lb/in) and 'y' (in).
+    '''
+    
+    from scipy.interpolate import interp1d
+    
+    #Convert deg to rad
+    phi_dr = phi_dr*pi/180.0
+    
+    alpha = phi_dr/2.          #rad
+    beta  = pi/4. + phi_dr/2.     #rad
+    K_0   = 0.4
+    K_a   = (1 - sin(phi_dr))/(1 + sin(phi_dr))
+    
+    #Convert psf to psi
+    sigma_v_eff = sigma_v_eff/144.
+    
+    
+    #Find ultimate soil resistance
+    C_1 = ( (tan(beta)**2)*tan(alpha)/tan(beta-phi_dr) 
+          + K_0*(tan(phi_dr)*sin(beta)/cos(alpha)/tan(beta-phi_dr)
+                 + tan(beta)*(tan(phi_dr)*sin(beta)-tan(alpha)) ) )
+    
+    C_2 = tan(beta)/tan(beta-phi_dr) - K_a
+    
+    C_3 = K_a*(tan(beta)**8 - 1) + K_0*tan(phi_dr)*tan(beta)**4
+    
+    
+    p_us = (C_1*(z-z_0) + C_2*D)*sigma_v_eff
+    p_ud = C_3*D*sigma_v_eff
+    
+    p_u  = min(p_us, p_ud)
+    
+    #k(lb/in3) from Table 5, API RP 2GEO (2011)
+    f_k = interp1d(array([25,30,35,40])/57.3, array([20,40,80,165]))
+    
+    #p-y curves
+    A = max(0.9, 3.0 - 0.8*(z-z_0)/D )
+    
+    try:
+        k = f_k(phi_dr)
+    except:
+        print "Value of the provided friction angle is out of the interpolation range given in Table 5"
+        print "of API RP 2GEO (2011). Please make sure that all drained friction angles are between"
+        print "30-deg and 40-deg in order to use the API RP 2GEO (2011) sand p-y model."
+        print "Quitting..."
+        
+    y = concatenate((-logspace(3,-4,100),[0],logspace(-4,3,100)))*D
+    
+    p = A*p_u*tanh(k*(z-z_0)/A/p_u * y)
+    
+
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plot(y,p,ls)
+        xlabel('y (in)'), ylabel('p (lb/in)')
+        grid(True)
+        
+    #Define Np as follow:
+    Np = p_u/sigma_v_eff/D
+    
+    if return_Np == 'Yes':
+        return f, Np
+    else:
+        return f
         
 
 ###################
@@ -3297,8 +3775,8 @@ def plot_Np_gapping(soil_profile,D=1.0,L=10., alpha=1.0):
                                                              epsilon_50=0.02,gapping='No',alpha=alpha, return_Np='Yes')
 
     #figure(figsize=(6,4))
-    plot(Np_with_gap,(z_Np-z0)/D)
-    plot(Np_without_gap,(z_Np-z0)/D)
+    plot(Np_with_gap,(z_Np-z0)/D, 'b')
+    plot(Np_without_gap,(z_Np-z0)/D, 'g')
     xlabel(r'$N_p$', fontsize=14), ylabel(r'$z/D$', fontsize=14), grid(True)
     #xlim([0,N_p_max+4])
 
@@ -3409,3 +3887,4 @@ def plot_Np(soil_profile,D=1.0,L=10., py_model='Matlock', invert_y_axis='No',**k
     if invert_y_axis=='Yes':
         ax = gca()
         ax.invert_yaxis(), ax.xaxis.tick_top(), ax.xaxis.set_label_position('top')
+        
