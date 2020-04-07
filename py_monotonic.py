@@ -161,7 +161,7 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, V_
     if print_output=='Yes':
         print(f'y_0 = {y[2]:.3f}-m')
     
-    return y,z
+    return y[2:-2], z[2:-2]
     
 
    
@@ -330,7 +330,7 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     if print_output=='Yes':
         print('V_0 = %.2f-N' %V_0)
     
-    return y,z,V_0
+    return y[2:-2], z[2:-2], V_0
    
    
 
