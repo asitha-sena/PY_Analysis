@@ -8,15 +8,19 @@ import matplotlib.pyplot as plt
 #### Pile Geometry and Loading ####
 ###################################
 
-def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, V_0=1000.0, M_0=0.0, V_n=0.0, M_n=0.0, n=50, 
-                  iterations=10, py_model='Matlock', print_output='Yes', convergence_tracker='No', loc=2, **kwargs):
-    '''Models a laterally loaded pile using the p-y method. The solution for lateral displacements 
-    is obtained by solving the 4th order ODE, EI*d4y/dz4 -F*d2y/dz2 + ky = 0 using the finite difference method.
+def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, 
+                     V_0=1000.0, M_0=0.0, V_n=0.0, M_n=0.0, n=50, iterations=10,
+                     py_model='Matlock', print_output='Yes', 
+                     convergence_tracker='No', loc=2, **kwargs):
+    '''Models a laterally loaded pile using the p-y method. The solution for
+    lateral displacements is obtained by solving the 4th order ODE, EI*d4y/dz4
+    -F*d2y/dz2 + ky = 0 using the finite difference method.
 
-    Takes natural boundary conditions at the pile head and tip. For displacement controlled analysis check
-    'py_analysis_2'.
+    Takes natural boundary conditions at the pile head and tip. For
+    displacement controlled analysis check 'py_analysis_2'.
     
-    Assumes that EI remains constant with respect to curvature i.e. pile material remains in the elastic region.
+    Assumes that EI remains constant with respect to curvature i.e. pile
+    material remains in the elastic region.
 
     Input:
     -----
