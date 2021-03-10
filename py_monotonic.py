@@ -111,26 +111,11 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
 
         if py_model == 'Matlock':
             py_funs.append(matlock_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
-        elif py_model == 'Jeanjean':
-            py_funs.append(jeanjean_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
-        elif py_model == 'Modified Matlock':
-            py_funs.append(modified_matlock_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
-        elif py_model == 'Kodikara':
-            py_funs.append(kodikara_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, R1=0.5, A=A, print_curves='No'))
-        elif py_model == 'Matlock No Gapping':
-            py_funs.append(matlock_py_curves_no_gapping(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
+        elif py_model == 'Jeanjean_2009':
+            py_funs.append(jeanjean_2009_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
         elif py_model == 'MM-1':
             py_funs.append(MM_1_py_curves_SI(z[i], D, Su, Su0, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
                                              gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-11':
-            py_funs.append(MM_11_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-12':
-            py_funs.append(MM_12_py_curves(z[i], D, f_Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-2':
-            py_funs.append(MM_2_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, N_p_max=N_p_max))
         elif py_model == 'Jeanjean_etal_2017':
             py_funs.append(jeanjean_2017_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, print_curves='No',
                                                   Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
@@ -280,26 +265,11 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
 
         if py_model == 'Matlock':
             py_funs.append(matlock_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
-        elif py_model == 'Jeanjean':
-            py_funs.append(jeanjean_py_curves(z[i], D,Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
-        elif py_model == 'Modified Matlock':
-            py_funs.append(modified_matlock_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
-        elif py_model == 'Kodikara':
-            py_funs.append(kodikara_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, R1=0.5, A=A, print_curves='No'))
-        elif py_model == 'Matlock No Gapping':
-            py_funs.append(matlock_py_curves_no_gapping(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
+        elif py_model == 'Jeanjean_2009':
+            py_funs.append(jeanjean_2009_py_curves(z[i], D,Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
         elif py_model == 'MM-1':
             py_funs.append(MM_1_py_curves_SI(z[i], D, Su, Su0, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
                                                   gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-11':
-            py_funs.append(MM_11_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-12':
-            py_funs.append(MM_12_py_curves(z[i], D, f_Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha))
-        elif py_model == 'MM-2':
-            py_funs.append(MM_2_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  Su0=f_Su(z_0+0.01), gapping=gapping, N_p_max=N_p_max))
         elif py_model == 'Jeanjean_etal_2017':
             py_funs.append(jeanjean_2017_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, print_curves='No',
                                                   Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
@@ -780,6 +750,247 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
         return f, N_p
     elif return_p_ult == 'Yes':
         return f, p_ult
+    else:
+        return f
+
+
+def jeanjean_2009_py_curves(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, print_curves='No', return_Np='No', ls='-'):
+    '''
+    Returns an interp1d interpolation function which represents the Jeanjean (2009) p-y curve at the depth of interest.
+
+    Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength (Pa)
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    Su_0         - Undrained shear strength at the mudline (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    A            - G_max/Su (default = 550)
+
+    Optional argument:
+    return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how well visualize the
+                   effect and depth of the gap and should only be used when this function is used by itself.
+                   DO NOT set it to 'Yes' for p-y analysis as the program will crash!
+
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest.
+    'p' (N/m) and 'y' (m).
+    '''
+
+    from scipy.interpolate import interp1d
+
+    G_max = A*Su
+
+    #Normalized p-y curve
+    Y = np.linspace(-3,3,1000)
+    P = np.tanh(A/100.0*abs(Y)**(0.5))*np.sign(Y)
+
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+
+    else:
+        #P-y curves for the actual soil
+        k = (Su - Su_0)/(z - z_0) #Secant gradient of the Su versus depth profile
+
+        '''k is the gradient of the Su profile versus depth. This model is intended to be used with soil profiles
+        with linear Su versus depth profiles and Jeanjean (2009) is not clearly on how to calculate k in the case
+        of a non-linear Su versus depth profile. In such a case, a tangential gradient, a secant gradient,
+        or gradient of fitted straight line could be used with varying results. Back-calculations based on the c/p
+        ratio and the submergend unit weight of the clay test bed used by Jeanjean (2009), it seems that he assumed
+        a lower bound linear Su profile.'''
+
+        if k == 0:
+            lamda = 6
+        else:
+            lamda = Su_0/(k*D)
+
+        if lamda < 6:
+            xi = 0.25 + 0.05*lamda
+        else:
+            xi = 0.55
+
+        N_p = 12 - 4*np.exp(-xi*(z-z_0)/D)
+
+    #Un-normalize p-y curves
+    p_ult = N_p*Su*D
+
+    p = P*p_ult
+    y = Y*D
+
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+
+    #Print curves
+    if print_curves=='Yes':
+        plt.plot(y,p,ls)
+        plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
+        plt.grid(True)
+
+    if return_Np == 'Yes':
+        return f, N_p
+    else:
+        return f
+
+
+def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='No', alpha = 1.0, TE_DSS_ratio=0.9,
+                            custom_py='No', a=0.0, strain_f=0.0, print_curves='No', ls='-', return_Np='No'):
+    '''Returns an interp1d interpolation function which represents the  p-y curves by Jeanjean et al (2017) at the depth of interest.
+
+    Important:
+    -Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
+    -Make sure that Su_0 > 0. If Su_0 = 0, then lamda = 0 => log(lamda) = inf! Therefore, N_p calculation will fail.
+
+    Input:
+    -----
+    z            - Depth relative to pile head (m)
+    D            - Pile diameter (m)
+    Su           - Undrained shear strength at depth 'z' (Pa)
+    Su_0         - Undrained shear strength at depth 'z0' (Pa)
+                   Note: If setting Su0 based on the 'interp1d' function for Su from 'design_soil_profile' then,
+                   it is safer to set Su0=f_Su(z0+0.01) rather than Su0=f_Su(z0) since f_Su(z0) could be zero
+                   and lead to numerical instabilities in the code. 'py_analysis_2()' uses Su0=f_Su(z0+0.01) by default.
+    sigma_v_eff  - Effectve vertical stress (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
+    epsilon_50   - Strain at half the strength as defined by Matlock (1970).
+                   Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
+    gapping      - 'Yes' -> N_p = 2.0 + gamma*z/Su + (Su0 + Su)/Su * sqrt(2)*(z/D)
+                   'No'  -> N_p = 4.0              + (Su0 + Su)/Su * 2*sqrt(2)*(z/D)
+    alpha        - Coefficient of pile-soil interface adhesion. 1.0 for a rough pile and 0.0 for a smooth pile.
+                   The maximum value of the lateral bearing capacity factor will be calculated as follows:
+                   N_p_max = 9 + 3*alpha
+                   Use option 'API' to calculate using the API method (Randolph & Murphy, 1985).
+    TE_DSS_ratio - Ratio between the value of Su measured using DSS test and that measured by triaxial extension test.
+                   (0.9 by default)
+    custom_py    - Define customized p-y curves instead of the default curves, if DSS test data is available.
+                   Options: 'Yes', 'No' (default). If yes, parameters 'a' and 'strain_f' have to be provided as input.
+    a            - Fitting parameter obtained by optimizing the fit to DSS test data.
+                   tau/Su = tanh a*(strain/strain_f)/tanh a
+    strain_f     - Total shear strain at failure as determined from DSS test results.
+                   (i.e. total strain when Su is mobilized)
+
+    Optional argument:
+    return_Np    - Returns the Np values that in addtion to the p-y curve. This option was added to check how well visualize the
+                   effect and depth of the gap and should only be used when this function is used by itself.
+                   DO NOT set it to 'Yes' for p-y analysis as the program will crash!
+
+    Output:
+    ------
+    Returns an interp1d interpolation function which represents the p-y curve at the depth of interest.
+    'p' (N/m) and 'y' (m).
+    '''
+
+    from scipy.interpolate import interp1d
+
+    psi = Su/sigma_v_eff
+
+    #Rate of increase of undrained shear strength with depth in linearly increasing
+    #Su vs z profiles. Su = Su_0 + Su_1*depth
+
+    Su_1 = (Su - Su_0)/(z - z_0)    #This works even for nonlinear and layers Su vs z profiles.
+                                    #The "equivalent" or "approximate" Su_1 thus calculated is okay
+                                    #moderately nonlinear Su vs z profiles (Figure 42, Jeanjean et al 2017)
+
+    #Calculate alpha based on the API method
+    if alpha=='API':
+        if psi<1.0:
+            alpha = min(0.5*psi**(-0.5),1.0)
+        elif psi>1.0:
+            alpha = min(0.5*psi**(-0.25),1.0)
+        elif z<z_0:
+            alpha=0.0 #Assign default value to alpha above the mudline to avoid numerical errors.
+        else:
+            print('psi = {psi:2.2f')
+            raise Exception('Failed to calculate alpha based on API method!')
+
+    N_1 = 12.0
+    N_2 = 3.22
+
+    #Normalized rate of undrained shear strength increase
+    lamda = Su_0/(Su_1*D)
+
+    d = max(16.8 - 2.3*np.log(lamda), 14.5)
+
+    #Maximum value of N_p under plane strain/full flow conditions
+    N_p_max = 9.0 + 3.0*alpha  #Refered to as 'N_pd' by Jeanjean et al (2017)
+
+    if (z-z_0)<=0:
+        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p  = 0.0
+
+    else:
+        #P-y curves for the actual soil
+        N_p0 = min(N_1 - (1-alpha) - (N_1 - N_2)*(1.0 - ((z-z_0)/d/D)**0.6)**1.35, N_p_max)
+
+        if np.isnan(N_p0)==True:
+            N_p0 = N_p_max
+
+        if gapping=='Yes':
+            N_p = min(N_p0 + sigma_v_eff/Su, N_p_max)
+
+        else:
+            N_p = min(2*N_p0, N_p_max)
+
+    if gapping=='Yes' and N_p < N_p_max:
+    #Reduce Su_DSS to Su_TE (i.e direct simple shear to triaxial extension) in shallow wedge region
+        N_p_z0 = N_1 - (1-alpha) - (N_1 - N_2)
+        C = 1 + (TE_DSS_ratio - 1)*(N_p_max - N_p)/(N_p_max - N_p_z0)
+
+        N_p = C*N_p
+
+    p_ult = Su*N_p*D
+
+    #Normalized p-y curves
+    if custom_py=='Yes' or custom_py=='yes':
+
+        if a==0.0 or strain_f==0.0:
+            print(f'a = {a:2.2f}, strain_f = {strain_f:2.2f}')
+            raise Exception('Input values for a and strain_f required!')
+
+
+        else:
+            A = 1.33 + 0.45*np.log(a)
+            Y_max = strain_f*(2.5-1.2*np.log(a))
+
+            Y = np.concatenate((-np.logspace(1,-4,25),[0],np.logspace(-4,1,25)))
+
+            P = np.sign(Y)*np.tanh(A*(abs(Y)/Y_max)**0.5) / np.tanh(A)
+
+            for i in range(0,len(P)):
+                if P[i] > 1.0:
+                    P[i] = 1.0
+                elif P[i] < -1.0:
+                    P[i] = -1.0
+
+    else:
+        P = np.array([-1.0,-1.0,-0.975,-0.9,-0.8,-0.7,-0.6,-0.5,-0.4,-0.3,-0.2,-0.05,
+                       0,0.05,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.975,1.0,1.0])
+
+        if Su <= 14.5: #i.e. Su < 14.5psi, 100kPa
+            Y = np.array([-10.,-0.25,-0.15,-0.082,-0.05,-0.032,-0.022,-14.5e-3,-9e-3,-5.3e-3,-3e-3,-3e-4,
+                       0,3e-4,3e-3,5.3e-3,9e-3,14.5e-3,0.022,0.032,0.05,0.082,0.15,0.25,10.])
+
+        else: #i.e Su > 14.5psi, 100kPa
+            Y = np.array([-10.,-0.25,-0.16,-0.114,-0.07,-0.045,-0.03,-0.02,-12.5e-3,-7e-3,-3.5e-3,-4e-4,
+                       0,4e-4,3.5e-3,7e-3,12.5e-3,0.02,0.03,0.045,0.07,0.114,0.16,0.25,10.])
+
+    #Un-normallized p-y curves
+    p = P*p_ult
+    y = Y*D
+
+    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+
+    if print_curves=='Yes':
+        #Plot of p-y curve and check if 'k' is calculated correctly
+        plt.plot(y,p,ls)
+        plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
+        plt.grid(True)
+
+    if return_Np == 'Yes':
+        return f, N_p
     else:
         return f
 
