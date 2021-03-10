@@ -25,7 +25,7 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
 
     Input:
     -----
-    Su_profile  - A 2D array of depths (in) and corresponding undrained shear strength(psf)
+    Su_profile  - A 2D array of depths (m) and corresponding undrained shear strength(Pa)
                   Eg: array([[z1,Su1],[z2,Su2],[z3,Su3]...])
                   Use small values for Su (eg: 0.001) instead of zeros to avoid divisions by zero but always start z at 0.0
                   Example of a valid data point at the mudline is [0.0, 0.001]
@@ -41,7 +41,7 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
     iterations  - Number of iterations to repeat calculation in order obtain convergence of 'y'
                   (A better approach is to iterate until a predefined tolerance is achieved but this requires additional
                   coding so, I will implement this later.)
-    py_model    - Select which p-y model to use, 'Matlock' or 'Jeanjean'.
+    py_model    - Select which p-y model to use, 'Matlock' or 'Jeanjean_2009', 'MM-1', or 'Jeajean_etal_2017'.
 
     Optional:
     convergence_tracker - Track how k_secant converges to actual p-y curve at a selected node
@@ -150,7 +150,7 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
     if convergence_tracker == 'Yes':
         y1 = np.linspace(-2.*D,2.*D,500)
         plt.plot(y1, py_funs[loc](y1))
-        plt.xlabel('y (in)'), plt.ylabel('p (lb/in)'), plt.grid(True)
+        plt.xlabel('y (m)'), plt.ylabel('p (N/m)'), plt.grid(True)
 
     for j in range(iterations):
         # if j == 0: print 'FD Solver started!'
@@ -199,7 +199,7 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     iterations  - Number of iterations to repeat calculation in order obtain convergence of 'y'
                   (A better approach is to iterate until a predefined tolerance is achieved but this requires additional
                   coding so, I will implement this later.)
-    py_model    - Select which p-y model to use, 'Matlock', 'Jeanjean', 'MM-1', or 'Kodikara'.
+    py_model    - Select which p-y model to use, 'Matlock', 'Jeanjean_2009', 'MM-1', or 'Jeanjean_etal_2017'.
     print_output - Print results on screen, Choose 'Yes' or 'No' (default = 'No')
 
     Optional:
@@ -319,7 +319,7 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     if convergence_tracker == 'Yes':
         y1 = np.linspace(-2.*D,2.*D,500)
         plt.plot(y1, py_funs[loc](y1))
-        plt.xlabel('y (in)'), plt.ylabel('p (lb/in)'), plt.grid(True)
+        plt.xlabel('y (m)'), plt.ylabel('p (N/m)'), plt.grid(True)
 
     for j in range(iterations):
         # if j == 0: print 'FD Solver started!'
@@ -647,8 +647,8 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
                    it is safer to set Su0=f_Su(z0+0.01) rather than Su0=f_Su(z0) since f_Su(z0) could be zero
                    and lead to numerical instabilities in the code. 'py_analysis_2()' uses Su0=f_Su(z0+0.01) by
                    default.
-    σ_v_eff  - Effectve vertical stress (psf)
-    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (in)
+    σ_v_eff  - Effectve vertical stress (Pa)
+    z_0          - Load eccentricity above the mudline or depth to mudline relative to the pile head (m)
     epsilon_50   - Strain at half the strength as defined by Matlock (1970).
                    Typically ranges from 0.005 (stiff clay) to 0.02 (soft clay).
                    If the 'Auto' option is selected, then epsilon_50 is automatically calculated
