@@ -4,12 +4,12 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-###################################
-#### Pile Geometry and Loading ####
-###################################
+#############################
+# Pile Geometry and Loading #
+#############################
 
 
-def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
+def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t=0.05, E=200e9, F=0.0,
                      V_0=1000.0, M_0=0.0, V_n=0.0, M_n=0.0, n=50, iterations=10,
                      py_model='Matlock', print_output='Yes',
                      convergence_tracker='No', loc=2, **kwargs):
@@ -55,8 +55,8 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
 
     # Extract optional keyword arguments
     epsilon_50, A, gapping, N_p_max = 0.02, 550, 'No', 12.0  # Default parameters if no **kwargs are defined
-    custom_py, a, strain_f          = 'No', 0.0, 0.0
-    ls, alpha                       = 'x', 0.0
+    custom_py, a, strain_f = 'No', 0.0, 0.0
+    ls, alpha = 'x', 0.0
 
     for arg in kwargs:
         if arg == 'epsilon_50':
@@ -83,17 +83,17 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
     D = float(D)
 
     # Pile geometry
-    I  = np.pi*(D**4 - (D-2*t)**4)/64.0
+    I = np.pi*(D**4 - (D-2*t)**4)/64.0
     EI = E*I
-    h  = L/n  # Element size
-    N  = (n+1)+4      # (n+1) Real + 4 Imaginary nodes
+    h = L/n  # Element size
+    N = (n+1)+4      # (n+1) Real + 4 Imaginary nodes
 
     # Array for displacements at nodes, including imaginary nodes.
     y = np.ones(N)*(0.01*D)   # An initial value of 0.01D was arbitrarily chosen
 
     # Initialize and assemble array/list of p-y curves at each real node
     z = np.zeros(N)
-    py_funs  = []
+    py_funs = []
     k_secant = np.zeros(N)
 
     for i in [0, 1]:        # Top two imaginary nodes
@@ -112,19 +112,19 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
         if py_model == 'Matlock':
             py_funs.append(matlock_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
         elif py_model == 'Jeanjean_2009':
-            py_funs.append(jeanjean_2009_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
+            py_funs.append(jeanjean_2009_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
         elif py_model == 'MM-1':
             py_funs.append(MM_1_py_curves_SI(z[i], D, Su, Su0, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
                                              gapping=gapping, alpha=alpha))
         elif py_model == 'Jeanjean_etal_2017':
             py_funs.append(jeanjean_2017_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, print_curves='No',
-                                                  Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
+                                                   Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
                                                    custom_py=custom_py, a=a, strain_f=strain_f))
         else:
             print("P-y model not properly defined. Please select one of the following:")
             print("'Matlock', 'Jeanjean', 'Modified Matlock', 'Kodikara', 'MM-1', 'MM-2', 'Jeanjean et al 2017'")
 
-        k_secant[i]     = py_funs[i](y[i])/y[i]
+        k_secant[i] = py_funs[i](y[i])/y[i]
 
     for i in [n+3, n+4]:   # Bottom two imaginary nodes
         z[i] = (i-2)*h
@@ -133,14 +133,14 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
 
     # Track k_secant and current displacements
     if convergence_tracker == 'Yes':
-        y1 = np.linspace(-2.*D,2.*D,500)
+        y1 = np.linspace(-2.*D, 2.*D, 500)
         plt.plot(y1, py_funs[loc](y1))
         plt.xlabel('y (m)'), plt.ylabel('p (N/m)'), plt.grid(True)
 
     for j in range(iterations):
         # if j == 0: print 'FD Solver started!'
 
-        y = fd_solver_1(n,N,h,EI,F,V_0,V_n,M_0,M_n,k_secant)
+        y = fd_solver_1(n, N, h, EI, F, V_0, V_n, M_0, M_n, k_secant)
 
         if convergence_tracker == 'Yes':
             plt.plot(y[loc], k_secant[loc]*y[loc], ls)
@@ -154,9 +154,8 @@ def py_analysis_1_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0,
     return y[2:-2], z[2:-2]
 
 
-
-def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_0=0.0, M_0=0.0, V_n=0.0, M_n=0.0, n=50,
-                  iterations=10, py_model='Matlock', print_output='Yes', convergence_tracker='No', loc=2, **kwargs):
+def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t=0.05, E=200e9, F=0.0, y_0=0.0, M_0=0.0, V_n=0.0, M_n=0.0, n=50,
+                     iterations=10, py_model='Matlock', print_output='Yes', convergence_tracker='No', loc=2, **kwargs):
     '''Models a laterally loaded pile using the p-y method. The solution for lateral displacements
     is obtained by solving the 4th order ODE, EI*d4y/dz4 -F*d2y/dz2 + ky = 0 using the finite difference method.
 
@@ -208,9 +207,9 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     from scipy import linalg
 
     # Extract optional keyword arguments
-    epsilon_50, A, gapping, N_p_max = 0.02, 550, 'No', 12.0 # Default parameters if no **kwargs are defined
-    custom_py, a, strain_f          = 'No', 0.0, 0.0
-    ls, alpha                       = 'x', 0.0
+    epsilon_50, A, gapping, N_p_max = 0.02, 550, 'No', 12.0  # Default parameters if no **kwargs are defined
+    custom_py, a, strain_f = 'No', 0.0, 0.0
+    ls, alpha = 'x', 0.0
 
     for arg in kwargs:
         if arg == 'epsilon_50':
@@ -218,39 +217,39 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
         if arg == 'Gmax_Su_ratio':
             A = kwargs[arg]
         if arg == 'gapping':
-            gapping=kwargs[arg]
+            gapping = kwargs[arg]
         if arg == 'N_p_max':
-            N_p_max=kwargs[arg]
+            N_p_max = kwargs[arg]
         if arg == 'alpha':
-            alpha=kwargs[arg]
+            alpha = kwargs[arg]
         if arg == 'custom_py':
-            custom_py=kwargs[arg]
+            custom_py = kwargs[arg]
         if arg == 'a':
             a = kwargs[arg]
         if arg == 'strain_f':
-            strain_f=kwargs[arg]
+            strain_f = kwargs[arg]
         if arg == 'ls':
-            ls=kwargs[arg]
+            ls = kwargs[arg]
 
     # Convert L and D to floating point numbers to avoid rounding errors
     L = float(L)
     D = float(D)
 
     # Pile geometry
-    I  = np.pi*(D**4 - (D-2*t)**4)/64.0
+    I = np.pi*(D**4 - (D-2*t)**4)/64.0
     EI = E*I
-    h  = L/n  # Element size
-    N  = (n+1)+4      # (n+1) Real + 4 Imaginary nodes
+    h = L/n  # Element size
+    N = (n+1)+4      # (n+1) Real + 4 Imaginary nodes
 
     # Array for displacements at nodes, including imaginary nodes.
     y = np.ones(N)*(0.01*D)   # An initial value of 0.01D was arbitrarily chosen
 
     # Initialize and assemble array/list of p-y curves at each real node
     z = np.zeros(N)
-    py_funs  = []
+    py_funs = []
     k_secant = np.zeros(N)
 
-    for i in [0,1]:        # Top two imaginary nodes
+    for i in [0, 1]:        # Top two imaginary nodes
         z[i] = (i-2)*h
         py_funs.append(0)
         k_secant[i] = 0.0
@@ -258,7 +257,7 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     # Extract soil profile data
     z_0, f_Su, f_sigma_v_eff = design_soil_profile_SI(soil_profile)
 
-    for i in range(2,n+3): # Real nodes
+    for i in range(2, n+3):  # Real nodes
         z[i] = (i-2)*h
 
         Su, Su0, sigma_v_eff = f_Su(z[i]), f_Su(z_0+0.01), f_sigma_v_eff(z[i])
@@ -266,19 +265,19 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
         if py_model == 'Matlock':
             py_funs.append(matlock_py_curves_SI(z[i], D, Su, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No'))
         elif py_model == 'Jeanjean_2009':
-            py_funs.append(jeanjean_2009_py_curves(z[i], D,Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
+            py_funs.append(jeanjean_2009_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, Su_0=f_Su(z_0), A=A))
         elif py_model == 'MM-1':
             py_funs.append(MM_1_py_curves_SI(z[i], D, Su, Su0, sigma_v_eff, z_0=z_0, epsilon_50=epsilon_50, print_curves='No',
-                                                  gapping=gapping, alpha=alpha))
+                                             gapping=gapping, alpha=alpha))
         elif py_model == 'Jeanjean_etal_2017':
             py_funs.append(jeanjean_2017_py_curves(z[i], D, Su, sigma_v_eff, z_0=z_0, print_curves='No',
-                                                  Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
+                                                   Su_0=f_Su(z_0+0.01), gapping=gapping, alpha=alpha,
                                                    custom_py=custom_py, a=a, strain_f=strain_f))
         else:
             print("P-y model not properly defined. Please select one of the following:")
             print("'Matlock', 'Jeanjean', 'Modified Matlock', 'Kodikara', 'MM-1', 'MM-2', 'Jeanjean et al 2017'")
 
-        k_secant[i]     = py_funs[i](y[i])/y[i]
+        k_secant[i] = py_funs[i](y[i])/y[i]
 
     for i in [n+3, n+4]:   # Bottom two imaginary nodes
         z[i] = (i-2)*h
@@ -287,14 +286,14 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
 
     # Track k_secant and current displacements
     if convergence_tracker == 'Yes':
-        y1 = np.linspace(-2.*D,2.*D,500)
+        y1 = np.linspace(-2.*D, 2.*D, 500)
         plt.plot(y1, py_funs[loc](y1))
         plt.xlabel('y (m)'), plt.ylabel('p (N/m)'), plt.grid(True)
 
     for j in range(iterations):
         # if j == 0: print 'FD Solver started!'
 
-        y,V_0 = fd_solver_2(n,N,h,EI,F,y_0,V_n,M_0,M_n,k_secant)
+        y, V_0 = fd_solver_2(n, N, h, EI, F, y_0, V_n, M_0, M_n, k_secant)
 
         if convergence_tracker == 'Yes':
             plt.plot(y[loc], k_secant[loc]*y[loc], ls)
@@ -308,12 +307,11 @@ def py_analysis_2_SI(soil_profile, L=10.0, D=1.0, t = 0.05, E=200e9, F = 0.0, y_
     return y[2:-2], z[2:-2], V_0
 
 
+##############
+# Solvers #
+##############
 
-#################
-#### Solvers ####
-#################
-
-def fd_solver_1(n,N,h,EI,F,V_0,V_n,M_0,M_n,k_secant):
+def fd_solver_1(n, N, h, EI, F, V_0, V_n, M_0, M_n, k_secant):
     '''Solves the finite difference equations from 'py_analysis_1'. This function should be run iteratively for
     non-linear p-y curves by updating 'k_secant' using 'y'. A single iteration is sufficient if the p-y curves
     are linear.
@@ -337,39 +335,39 @@ def fd_solver_1(n,N,h,EI,F,V_0,V_n,M_0,M_n,k_secant):
     from scipy import linalg
 
     # Initialize and assemble matrix
-    X = np.zeros((N,N))
+    X = np.zeros((N, N))
 
     # (n+1) finite difference equations for (n+1) real nodes
-    for i in range(0,n+1):
-        X[i,i]   =  1.0
-        X[i,i+1] = -4.0 + F*h**2/EI
-        X[i,i+2] =  6.0 - 2*F*h**2/EI + k_secant[i+2]*h**4/EI
-        X[i,i+3] = -4.0 + F*h**2/EI
-        X[i,i+4] =  1.0
+    for i in range(0, n+1):
+        X[i, i] = 1.0
+        X[i, i+1] = -4.0 + F*h**2/EI
+        X[i, i+2] = 6.0 - 2*F*h**2/EI + k_secant[i+2]*h**4/EI
+        X[i, i+3] = -4.0 + F*h**2/EI
+        X[i, i+4] = 1.0
 
     # Curvature at pile head
-    X[n+1,1]   =  1.0
-    X[n+1,2]   = -2.0
-    X[n+1,3]   =  1.0
+    X[n+1, 1] = 1.0
+    X[n+1, 2] = -2.0
+    X[n+1, 3] = 1.0
 
     # Shear at pile head
-    X[n+2,0]   = -1.0
-    X[n+2,1]   =  2.0 - F*h**2/EI
-    X[n+2,2]   =  0.0
-    X[n+2,3]   = -2.0 + F*h**2/EI
-    X[n+2,4]   =  1.0
+    X[n+2, 0] = -1.0
+    X[n+2, 1] = 2.0 - F*h**2/EI
+    X[n+2, 2] = 0.0
+    X[n+2, 3] = -2.0 + F*h**2/EI
+    X[n+2, 4] = 1.0
 
     # Curvature at pile tip
-    X[n+3,-2]   =  1.0
-    X[n+3,-3]   = -2.0
-    X[n+3,-4]   =  1.0
+    X[n+3, -2] = 1.0
+    X[n+3, -3] = -2.0
+    X[n+3, -4] = 1.0
 
     # Shear at pile tip
-    X[n+4,-1]   =   1.0
-    X[n+4,-2]   =  -2.0 + F*h**2/EI
-    X[n+4,-3]   =   0.0
-    X[n+4,-4]   =   2.0 - F*h**2/EI
-    X[n+4,-5]   =  -1.0
+    X[n+4, -1] = 1.0
+    X[n+4, -2] = -2.0 + F*h**2/EI
+    X[n+4, -3] = 0.0
+    X[n+4, -4] = 2.0 - F*h**2/EI
+    X[n+4, -5] = -1.0
 
     # X*y = q
 
@@ -382,12 +380,12 @@ def fd_solver_1(n,N,h,EI,F,V_0,V_n,M_0,M_n,k_secant):
     q[-3] = 2*V_0*h**3     # Shear at pile head
     q[-4] = M_0*h**2       # Moment at pile head
 
-    y = linalg.solve(EI*X,q)
+    y = linalg.solve(EI*X, q)
 
     return y
 
 
-def fd_solver_2(n,N,h,EI,F,y_0,V_n,M_0,M_n,k_secant):
+def fd_solver_2(n, N, h, EI, F, y_0, V_n, M_0, M_n, k_secant):
     '''Solves the finite difference equations from 'py_analysis_2'. This function should be run iteratively for
     non-linear p-y curves by updating 'k_secant' using 'y'. A single iteration is sufficient if the p-y curves
     are linear.
@@ -415,64 +413,64 @@ def fd_solver_2(n,N,h,EI,F,y_0,V_n,M_0,M_n,k_secant):
     from scipy import linalg
 
     # Initialize and assemble matrix
-    X = np.zeros((N,N))
+    X = np.zeros((N, N))
 
     # (n+1) finite difference equations for (n+1) real nodes
-    for i in range(0,n+1):
-        X[i,i]   =  1.0
-        X[i,i+1] = -4.0 + F*h**2/EI
-        X[i,i+2] =  6.0 - 2*F*h**2/EI + k_secant[i+2]*h**4/EI
-        X[i,i+3] = -4.0 + F*h**2/EI
-        X[i,i+4] =  1.0
+    for i in range(0, n+1):
+        X[i, i] = 1.0
+        X[i, i+1] = -4.0 + F*h**2/EI
+        X[i, i+2] = 6.0 - 2*F*h**2/EI + k_secant[i+2]*h**4/EI
+        X[i, i+3] = -4.0 + F*h**2/EI
+        X[i, i+4] = 1.0
 
     # Curvature at pile head
-    X[n+1,1]   =  1.0
-    X[n+1,2]   = -2.0
-    X[n+1,3]   =  1.0
+    X[n+1, 1] = 1.0
+    X[n+1, 2] = -2.0
+    X[n+1, 3] = 1.0
 
     # Shear at pile head
-    X[n+2,0]   = -1.0
-    X[n+2,1]   =  2.0 - F*h**2/EI
-    X[n+2,2]   =  0.0
-    X[n+2,3]   = -2.0 + F*h**2/EI
-    X[n+2,4]   =  1.0
+    X[n+2, 0] = -1.0
+    X[n+2, 1] = 2.0 - F*h**2/EI
+    X[n+2, 2] = 0.0
+    X[n+2, 3] = -2.0 + F*h**2/EI
+    X[n+2, 4] = 1.0
 
     # Curvature at pile tip
-    X[n+3,-2]  =  1.0
-    X[n+3,-3]  = -2.0
-    X[n+3,-4]  =  1.0
+    X[n+3, -2] = 1.0
+    X[n+3, -3] = -2.0
+    X[n+3, -4] = 1.0
 
     # Shear at pile tip
-    X[n+4,-1]  =   1.0
-    X[n+4,-2]  =  -2.0 + F*h**2/EI
-    X[n+4,-3]  =   0.0
-    X[n+4,-4]  =   2.0 - F*h**2/EI
-    X[n+4,-5]  =  -1.0
+    X[n+4, -1] = 1.0
+    X[n+4, -2] = -2.0 + F*h**2/EI
+    X[n+4, -3] = 0.0
+    X[n+4, -4] = 2.0 - F*h**2/EI
+    X[n+4, -5] = -1.0
 
     # Repartition X since y_0 is specified.
 
     # print 'X \n', X
 
-    X1 = np.zeros((N,N))
-    X1[:,:] = X[:,:]
+    X1 = np.zeros((N, N))
+    X1[:, :] = X[:, :]
 
-    X1[:,2]  = np.zeros(N)
-    X1[-3,2] = -1.0/EI
+    X1[:, 2] = np.zeros(N)
+    X1[-3, 2] = -1.0/EI
 
     # X*y = q
     # Initialize vector q
     q = np.zeros(N)
 
     # Apply essential boundary condition i.e. y_0
-    q[0:-4] = -X[0:-4,2]*EI*y_0
+    q[0:-4] = -X[0:-4, 2]*EI*y_0
 
     # Populate q with natural boundary conditions
-    q[-1] = 2*V_n*h**3 -X[-1,2]*EI*y_0      # Shear at pile tip
-    q[-2] = M_n*h**2   -X[-2,2]*EI*y_0      # Moment at pile tip
-    q[-3] =            -X[-3,2]*EI*y_0
-    q[-4] = M_0*h**2   -X[-4,2]*EI*y_0      # Moment at pile head
+    q[-1] = 2*V_n*h**3 - X[-1, 2]*EI*y_0  # Shear at pile tip
+    q[-2] = M_n*h**2 - X[-2, 2]*EI*y_0  # Moment at pile tip
+    q[-3] = - X[-3, 2]*EI*y_0
+    q[-4] = M_0*h**2 - X[-4, 2]*EI*y_0  # Moment at pile head
 
-    y1 = linalg.solve(EI*X1,q)
+    y1 = linalg.solve(EI*X1, q)
 
     V_0 = y1[2]/(2*h**3)
 
@@ -483,12 +481,12 @@ def fd_solver_2(n,N,h,EI,F,y_0,V_n,M_0,M_n,k_secant):
     return y, V_0
 
 
-###############################
-#### P-Y Curve Definitions ####
-###############################
+#########################
+# P-Y Curve Definitions #
+#########################
 
 def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loading_type='static', print_curves='No',
-                     return_Np='No',ls='-'):
+                         return_Np='No', ls='-'):
     '''Returns an interp1d interpolation function which represents the Matlock (1970) p-y curve at the depth of interest.
 
     Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in the main program.
@@ -517,48 +515,52 @@ def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loadin
 
     from scipy.interpolate import interp1d
 
-
     # p-y curve properties
-    J     = 0.5
+    J = 0.5
 
-    if (z-z_0)<0:
+    if (z-z_0) < 0:
         # p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
-        N_p  = 0.0
-        z_cr = 1.0 # Dummy value to keep program from crashing
+        N_p = 0.0
+        z_cr = 1.0  # Dummy value to keep program from crashing
 
     else:
         try:
-            N_p   = 3.0 + sigma_v_eff/Su + J*(z-z_0)/D
+            N_p = 3.0 + sigma_v_eff/Su + J*(z-z_0)/D
 
-            if N_p > 9.0: N_p = 9.0
+            if N_p > 9.0:
+                N_p = 9.0
 
-            z_cr  = (6.0 - sigma_v_eff/Su)*D/J  # This condition is implemented to avoid zero division errors.
+            z_cr = (6.0 - sigma_v_eff/Su)*D/J  # This condition is implemented to avoid zero division errors.
 
         except ZeroDivisionError:
             print("Division by zero! Su = 0.0 so z_cr cannot be calculated.")
 
     p_ult = Su*N_p*D
-    y_50  = 2.5*epsilon_50*D
+    y_50 = 2.5*epsilon_50*D
 
     # Normalized lateral displacement
-    Y = np.concatenate((-np.logspace(3,-4,100),[0],np.logspace(-4,3,100)))
+    Y = np.concatenate((-np.logspace(3, -4, 100), [0], np.logspace(-4, 3, 100)))
 
     # Normalized depths
-    Z    = z/D
+    Z = z/D
     Z_cr = z_cr/D
 
     # Normalized p-y curves
-    P = 0.5*np.sign(Y)*abs(Y)**(1.0/3.0)  # sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
-                                           # Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
-    for i in range(0,len(Y)):
-        if P[i] > 1.0:    P[i] = 1.0
-        elif P[i] < -1.0: P[i] = -1.0
+    P = 0.5*np.sign(Y)*abs(Y)**(1.0/3.0)
+    # sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+    # Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
+
+    for i in range(0, len(Y)):
+        if P[i] > 1.0:
+            P[i] = 1.0
+        elif P[i] < -1.0:
+            P[i] = -1.0
 
     if loading_type == 'cyclic':
 
-        for i in range(0,len(Y)):
+        for i in range(0, len(Y)):
 
-            if Z<=Z_cr:
+            if Z <= Z_cr:
                 if abs(Y[i]) <= 3:
                     P[i] = P[i]
                 elif 3 <= Y[i] <= 15:
@@ -573,26 +575,25 @@ def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loadin
             else:
                 if abs(Y[i]) <= 3:
                     P[i] = P[i]
-                elif Y[i]>=3:
+                elif Y[i] >= 3:
                     P[i] = 0.72
                 else:
                     P[i] = -0.72
-
 
     # Un-normallized p-y curves
     p = P*p_ult
     y = Y*y_50
 
-    f = interp1d(y,p, kind='linear')   # Interpolation function for p-y curve
+    f = interp1d(y, p, kind='linear')   # Interpolation function for p-y curve
 
     # Secant stiffness
     # k = f(y1)/y1
 
     if print_curves == 'Yes':
         # Plot of p-y curve and check if 'k' is calculated correctly
-        plt.plot(y,p,ls), plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
+        plt.plot(y, p, ls), plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
         plt.grid(True)
-        plt.xlim([-2*D,2*D])
+        plt.xlim([-2*D, 2*D])
 
     if return_Np == 'Yes':
         return f, N_p
@@ -600,8 +601,8 @@ def matlock_py_curves_SI(z, D, Su, sigma_v_eff, z_0=0.0, epsilon_50=0.02, loadin
         return f
 
 
-def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping='No', alpha = 1.0,
-                      loading_type='static', N_eq=0, print_curves='No',ls='-', return_Np='No', return_p_ult='No'):
+def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping='No', alpha=1.0,
+                      loading_type='static', N_eq=0, print_curves='No', ls='-', return_Np='No', return_p_ult='No'):
     '''Returns an interp1d interpolation function which represents the MM-1 p-y curve at the depth of interest.
 
     Important: Make sure to import the interp1 function by running 'from scipy.interpolate import interp1d' in
@@ -657,12 +658,12 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
 
     # Calculate alpha based on the API method
     if alpha == 'API':
-        if psi<1.0:
-            alpha = min(0.5*psi**(-0.5),1.0)
-        elif psi>1.0:
-            alpha = min(0.5*psi**(-0.25),1.0)
-        elif z<z_0:
-            alpha=0.0 # Assign default value to alpha above the mudline to avoid numerical errors.
+        if psi < 1.0:
+            alpha = min(0.5*psi**(-0.5), 1.0)
+        elif psi > 1.0:
+            alpha = min(0.5*psi**(-0.25), 1.0)
+        elif z < z_0:
+            alpha = 0.0  # Assign default value to alpha above the mudline to avoid numerical errors.
         else:
             print('psi = %2.2f' %psi)
             raise Exception('Failed to calculate alpha based on API method!')
@@ -674,35 +675,37 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
     if gapping == 'No':
         N_p0 = 4.0 + alpha*np.pi
         N_p1 = 0.0
-        J    = (Su0 + Su)/Su * 2*np.sqrt(2)
+        J = (Su0 + Su)/Su * 2*np.sqrt(2)
     else:
         N_p0 = 2.0 + alpha*np.pi/2
         N_p1 = σ_v_eff/Su
-        J    = (Su0 + Su)/Su * np.sqrt(2)
+        J = (Su0 + Su)/Su * np.sqrt(2)
 
-    if (z-z_0)<0:
+    if (z-z_0) < 0:
         # p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
-        N_p  = 0.0
+        N_p = 0.0
         z_cr = 1.0  # Dummy value to keep program from crashing
 
     else:
         try:
-            N_p   = N_p0 + N_p1 + J*(z-z_0)/D
+            N_p = N_p0 + N_p1 + J*(z-z_0)/D
 
-            if N_p > N_p_max: N_p = N_p_max
+            if N_p > N_p_max:
+                N_p = N_p_max
 
-            z_cr  = (6.0 - σ_v_eff/Su)*D/J  # This condition is implemented to avoid zero division errors.
+            z_cr = (6.0 - σ_v_eff/Su)*D/J  # This condition is implemented to avoid zero division errors.
 
         except ZeroDivisionError:
             print("Division by zero! Su = 0.0 so z_cr cannot be calculated.")
 
-    if epsilon_50 == 'Auto' and Su!=0:
+    if epsilon_50 == 'Auto' and Su != 0:
         # epsilon_50 = min(0.02, 0.004 + 0.0032*(σ_v_eff/Su))
 
         P_a = 101.325e3  # Pa, atmospheric pressure
         psi = Su/(P_a + σ_v_eff)  # Where (P_a + σ_v_eff) is the confining stress
-        epsilon_50 = -0.0318*psi**0.109 + 0.0395  # This relationship was obtained by fitting y = a*x**b + c
-                                                  # to Su and epsilon_50 data from Reese et al (1975)
+        epsilon_50 = -0.0318*psi**0.109 + 0.0395
+        # This relationship was obtained by fitting y = a*x**b + c
+        # to Su and epsilon_50 data from Reese et al (1975)
 
         if epsilon_50 > 0.02:
             epsilon_50 = 0.02
@@ -710,39 +713,42 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
             epsilon_50 = 0.004
 
     elif epsilon_50 == 'Auto' and Su == 0:
-        epsilon_50=0.02
-
+        epsilon_50 = 0.02
 
     # Modify Su according to cyclic loading history
     if loading_type == 'cyclic':
         Su = Su*(0.3/(N_eq + 1) + 0.7)
 
     p_ult = Su*N_p*D
-    y_50  = 2.5*epsilon_50*D
+    y_50 = 2.5*epsilon_50*D
 
     # Normalized lateral displacement
-    Y = np.concatenate((-np.logspace(3,-4,100),[0],np.logspace(-4,3,100)))
+    Y = np.concatenate((-np.logspace(3, -4, 100), [0], np.logspace(-4, 3, 100)))
 
     # Normalized depths
-    Z    = z/D
+    Z = z/D
     Z_cr = z_cr/D
 
     # Normalized p-y curves
-    P = 0.5*np.sign(Y)*abs(Y)**(1.0/3.0)  # sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
-                                           # Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
-    for i in range(0,len(Y)):
-        if P[i] > 1.0:    P[i] = 1.0
-        elif P[i] < -1.0: P[i] = -1.0
+    P = 0.5*np.sign(Y)*abs(Y)**(1.0/3.0)
+    # sign(Y) and abs(Y) used since negative numbers cannot be raised to fractional powers
+    # Expression equivalent to P = 0.5*Y**(1.0/3.0) for Y>=0
+
+    for i in range(0, len(Y)):
+        if P[i] > 1.0:
+            P[i] = 1.0
+        elif P[i] < -1.0:
+            P[i] = -1.0
 
     # Un-normallized p-y curves
     p = P*p_ult
     y = Y*y_50
 
-    f = interp1d(y,p, kind='linear')   # Interpolation function for p-y curve
+    f = interp1d(y, p, kind='linear')   # Interpolation function for p-y curve
 
     if print_curves == 'Yes':
         # Plot of p-y curve and check if 'k' is calculated correctly
-        plt.plot(y,p,ls)
+        plt.plot(y, p, ls)
         plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
         plt.grid(True)
 
@@ -754,7 +760,7 @@ def MM_1_py_curves_SI(z, D, Su, Su0, σ_v_eff, z_0=0.0, epsilon_50=0.02, gapping
         return f
 
 
-def jeanjean_2009_py_curves(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, print_curves='No', return_Np='No', ls='-'):
+def jeanjean_2009_py_curves(z, D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, print_curves='No', return_Np='No', ls='-'):
     '''
     Returns an interp1d interpolation function which represents the Jeanjean (2009) p-y curve at the depth of interest.
 
@@ -785,17 +791,17 @@ def jeanjean_2009_py_curves(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, prin
 
     G_max = A*Su
 
-    #Normalized p-y curve
-    Y = np.linspace(-3,3,1000)
+    # Normalized p-y curve
+    Y = np.linspace(-3, 3, 1000)
     P = np.tanh(A/100.0*abs(Y)**(0.5))*np.sign(Y)
 
-    if (z-z_0)<=0:
-        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
-        N_p  = 0.0
+    if (z-z_0) <= 0:
+        # p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p = 0.0
 
     else:
-        #P-y curves for the actual soil
-        k = (Su - Su_0)/(z - z_0) #Secant gradient of the Su versus depth profile
+        # P-y curves for the actual soil
+        k = (Su - Su_0)/(z - z_0)  # Secant gradient of the Su versus depth profile
 
         '''k is the gradient of the Su profile versus depth. This model is intended to be used with soil profiles
         with linear Su versus depth profiles and Jeanjean (2009) is not clearly on how to calculate k in the case
@@ -816,17 +822,17 @@ def jeanjean_2009_py_curves(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, prin
 
         N_p = 12 - 4*np.exp(-xi*(z-z_0)/D)
 
-    #Un-normalize p-y curves
+    # Un-normalize p-y curves
     p_ult = N_p*Su*D
 
     p = P*p_ult
     y = Y*D
 
-    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    f = interp1d(y, p, kind='linear')   # Interpolation function for p-y curve
 
-    #Print curves
-    if print_curves=='Yes':
-        plt.plot(y,p,ls)
+    # Print curves
+    if print_curves == 'Yes':
+        plt.plot(y, p, ls)
         plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
         plt.grid(True)
 
@@ -836,7 +842,7 @@ def jeanjean_2009_py_curves(z,D, Su, sigma_v_eff, Su_0=0.0, z_0=0.0, A=550, prin
         return f
 
 
-def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='No', alpha = 1.0, TE_DSS_ratio=0.9,
+def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='No', alpha=1.0, TE_DSS_ratio=0.9,
                             custom_py='No', a=0.0, strain_f=0.0, print_curves='No', ls='-', return_Np='No'):
     '''Returns an interp1d interpolation function which represents the  p-y curves by Jeanjean et al (2017) at the depth of interest.
 
@@ -887,21 +893,22 @@ def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='N
 
     psi = Su/sigma_v_eff
 
-    #Rate of increase of undrained shear strength with depth in linearly increasing
-    #Su vs z profiles. Su = Su_0 + Su_1*depth
+    # Rate of increase of undrained shear strength with depth in linearly increasing
+    # Su vs z profiles. Su = Su_0 + Su_1*depth
 
-    Su_1 = (Su - Su_0)/(z - z_0)    #This works even for nonlinear and layers Su vs z profiles.
-                                    #The "equivalent" or "approximate" Su_1 thus calculated is okay
-                                    #moderately nonlinear Su vs z profiles (Figure 42, Jeanjean et al 2017)
+    Su_1 = (Su - Su_0)/(z - z_0)
+    # This works even for nonlinear and layers Su vs z profiles.
+    # The "equivalent" or "approximate" Su_1 thus calculated is okay
+    # moderately nonlinear Su vs z profiles (Figure 42, Jeanjean et al 2017)
 
-    #Calculate alpha based on the API method
-    if alpha=='API':
-        if psi<1.0:
-            alpha = min(0.5*psi**(-0.5),1.0)
-        elif psi>1.0:
-            alpha = min(0.5*psi**(-0.25),1.0)
-        elif z<z_0:
-            alpha=0.0 #Assign default value to alpha above the mudline to avoid numerical errors.
+    # Calculate alpha based on the API method
+    if alpha == 'API':
+        if psi < 1.0:
+            alpha = min(0.5*psi**(-0.5), 1.0)
+        elif psi > 1.0:
+            alpha = min(0.5*psi**(-0.25), 1.0)
+        elif z < z_0:
+            alpha = 0.0  # Assign default value to alpha above the mudline to avoid numerical errors.
         else:
             print('psi = {psi:2.2f')
             raise Exception('Failed to calculate alpha based on API method!')
@@ -909,33 +916,33 @@ def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='N
     N_1 = 12.0
     N_2 = 3.22
 
-    #Normalized rate of undrained shear strength increase
+    # Normalized rate of undrained shear strength increase
     lamda = Su_0/(Su_1*D)
 
     d = max(16.8 - 2.3*np.log(lamda), 14.5)
 
-    #Maximum value of N_p under plane strain/full flow conditions
-    N_p_max = 9.0 + 3.0*alpha  #Refered to as 'N_pd' by Jeanjean et al (2017)
+    # Maximum value of N_p under plane strain/full flow conditions
+    N_p_max = 9.0 + 3.0*alpha  # Refered to as 'N_pd' by Jeanjean et al (2017)
 
-    if (z-z_0)<=0:
-        #p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
-        N_p  = 0.0
+    if (z-z_0) <= 0:
+        # p-y curves for the virtual soil layer between the pile head and the mudline should have p=0
+        N_p = 0.0
 
     else:
-        #P-y curves for the actual soil
+        # P-y curves for the actual soil
         N_p0 = min(N_1 - (1-alpha) - (N_1 - N_2)*(1.0 - ((z-z_0)/d/D)**0.6)**1.35, N_p_max)
 
-        if np.isnan(N_p0)==True:
+        if np.isnan(N_p0) is True:
             N_p0 = N_p_max
 
-        if gapping=='Yes':
+        if gapping == 'Yes':
             N_p = min(N_p0 + sigma_v_eff/Su, N_p_max)
 
         else:
             N_p = min(2*N_p0, N_p_max)
 
-    if gapping=='Yes' and N_p < N_p_max:
-    #Reduce Su_DSS to Su_TE (i.e direct simple shear to triaxial extension) in shallow wedge region
+    if gapping == 'Yes' and N_p < N_p_max:
+        # Reduce Su_DSS to Su_TE (i.e direct simple shear to triaxial extension) in shallow wedge region
         N_p_z0 = N_1 - (1-alpha) - (N_1 - N_2)
         C = 1 + (TE_DSS_ratio - 1)*(N_p_max - N_p)/(N_p_max - N_p_z0)
 
@@ -943,49 +950,50 @@ def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='N
 
     p_ult = Su*N_p*D
 
-    #Normalized p-y curves
-    if custom_py=='Yes' or custom_py=='yes':
+    # Normalized p-y curves
+    if custom_py == 'Yes' or custom_py == 'yes':
 
-        if a==0.0 or strain_f==0.0:
+        if a == 0.0 or strain_f == 0.0:
             print(f'a = {a:2.2f}, strain_f = {strain_f:2.2f}')
             raise Exception('Input values for a and strain_f required!')
-
 
         else:
             A = 1.33 + 0.45*np.log(a)
             Y_max = strain_f*(2.5-1.2*np.log(a))
 
-            Y = np.concatenate((-np.logspace(1,-4,25),[0],np.logspace(-4,1,25)))
+            Y = np.concatenate((-np.logspace(1, -4, 25), [0], np.logspace(-4, 1, 25)))
 
             P = np.sign(Y)*np.tanh(A*(abs(Y)/Y_max)**0.5) / np.tanh(A)
 
-            for i in range(0,len(P)):
+            for i in range(0, len(P)):
                 if P[i] > 1.0:
                     P[i] = 1.0
                 elif P[i] < -1.0:
                     P[i] = -1.0
 
     else:
-        P = np.array([-1.0,-1.0,-0.975,-0.9,-0.8,-0.7,-0.6,-0.5,-0.4,-0.3,-0.2,-0.05,
-                       0,0.05,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,0.975,1.0,1.0])
+        P = np.array([-1.0, -1.0, -0.975, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.05,
+                      0, 0.05, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.975, 1.0, 1.0])
 
-        if Su <= 100e3: #i.e. Su < 14.5psi, 100kPa
-            Y = np.array([-10.,-0.25,-0.15,-0.082,-0.05,-0.032,-0.022,-14.5e-3,-9e-3,-5.3e-3,-3e-3,-3e-4,
-                       0,3e-4,3e-3,5.3e-3,9e-3,14.5e-3,0.022,0.032,0.05,0.082,0.15,0.25,10.])
+        if Su <= 100e3:
+            # i.e. Su < 14.5psi, 100kPa
+            Y = np.array([-10., -0.25, -0.15, -0.082, -0.05, -0.032, -0.022, -14.5e-3, -9e-3, -5.3e-3, -3e-3, -3e-4,
+                          0, 3e-4, 3e-3, 5.3e-3, 9e-3, 14.5e-3, 0.022, 0.032, 0.05, 0.082, 0.15, 0.25, 10.])
 
-        else: #i.e Su > 14.5psi, 100kPa
-            Y = np.array([-10.,-0.25,-0.16,-0.114,-0.07,-0.045,-0.03,-0.02,-12.5e-3,-7e-3,-3.5e-3,-4e-4,
-                       0,4e-4,3.5e-3,7e-3,12.5e-3,0.02,0.03,0.045,0.07,0.114,0.16,0.25,10.])
+        else:
+            # i.e Su > 14.5psi, 100kPa
+            Y = np.array([-10., -0.25, -0.16, -0.114, -0.07, -0.045, -0.03, -0.02, -12.5e-3, -7e-3, -3.5e-3, -4e-4,
+                          0, 4e-4, 3.5e-3, 7e-3, 12.5e-3, 0.02, 0.03, 0.045, 0.07, 0.114, 0.16, 0.25, 10.])
 
-    #Un-normallized p-y curves
+    # Un-normallized p-y curves
     p = P*p_ult
     y = Y*D
 
-    f = interp1d(y,p, kind='linear')   #Interpolation function for p-y curve
+    f = interp1d(y, p, kind='linear')   # Interpolation function for p-y curve
 
-    if print_curves=='Yes':
-        #Plot of p-y curve and check if 'k' is calculated correctly
-        plt.plot(y,p,ls)
+    if print_curves == 'Yes':
+        # Plot of p-y curve and check if 'k' is calculated correctly
+        plt.plot(y, p, ls)
         plt.xlabel('y (m)'), plt.ylabel('p (N/m)')
         plt.grid(True)
 
@@ -995,9 +1003,9 @@ def jeanjean_2017_py_curves(z, D, Su, sigma_v_eff, z_0=0.0, Su_0=0.0, gapping='N
         return f
 
 
-#######################
-#### Soil Profile #####
-#######################
+################
+# Soil Profile #
+################
 
 def design_soil_profile_SI(soil_profile, plot_profile='No', y_axis_label='Depth below the pile head (m)'):
     '''Define the soil profile used by the p-y analyzer. Outputs 'interp1d' functions containing Su and sigma'_v
@@ -1027,13 +1035,13 @@ def design_soil_profile_SI(soil_profile, plot_profile='No', y_axis_label='Depth 
     from scipy.interpolate import interp1d
 
     # Depth of mudline relative to pile head
-    z0 = soil_profile[0,0].astype(float)
+    z0 = soil_profile[0, 0].astype(float)
 
     # Extract data from soil_profile array and zero strength virtual soil layer
     # from the pile head down to the mudline
-    depth     = np.concatenate([np.array([0,z0]), soil_profile[:,0].astype(float)])  # m
-    Su        = np.concatenate([np.array([0, 0]), soil_profile[:,1].astype(float)])  # kPa
-    gamma_sub = np.concatenate([np.array([0, 0]), soil_profile[:,2].astype(float)])  # kN/m^3
+    depth = np.concatenate([np.array([0, z0]), soil_profile[:, 0].astype(float)])  # m
+    Su = np.concatenate([np.array([0, 0]), soil_profile[:, 1].astype(float)])  # kPa
+    gamma_sub = np.concatenate([np.array([0, 0]), soil_profile[:, 2].astype(float)])  # kN/m^3
 
     if plot_profile == 'Yes':
         # Plot Su vs z profile for confirmation
@@ -1042,7 +1050,7 @@ def design_soil_profile_SI(soil_profile, plot_profile='No', y_axis_label='Depth 
         plt.xlabel('Undrained shear strength (kPa)'), plt.ylabel(y_axis_label), plt.grid(True)
 
         # Plot mudline/ground surface
-        plt.plot([-0.5*max(Su),max(Su)], [z0,z0], '--', color='brown')
+        plt.plot([-0.5*max(Su), max(Su)], [z0, z0], '--', color='brown')
         plt.text(-0.5*max(Su), 0.95*z0, 'Mudline', color='brown')
 
         ax = plt.gca()
@@ -1051,12 +1059,11 @@ def design_soil_profile_SI(soil_profile, plot_profile='No', y_axis_label='Depth 
     # Calculate sigma_v_eff at each depth
     sigma_v_eff = np.zeros(len(depth))
 
-    for i in range(1,len(depth)):
+    for i in range(1, len(depth)):
         sigma_v_eff[i] = sigma_v_eff[i-1] + gamma_sub[i-1]*(depth[i]-depth[i-1])
 
     # Define interpolation functions
-    f_Su          = interp1d(depth, Su*1000,          kind='linear') # Pa
-    f_sigma_v_eff = interp1d(depth, sigma_v_eff*1000, kind='linear') # Pa
+    f_Su = interp1d(depth, Su*1000, kind='linear')  # Pa
+    f_sigma_v_eff = interp1d(depth, sigma_v_eff*1000, kind='linear')  # Pa
 
     return z0, f_Su, f_sigma_v_eff
-
